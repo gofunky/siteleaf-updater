@@ -39,7 +39,7 @@ That circumstance impairs common maintenance and automation requirements.
 | ------ | ------ | ------ | ------ | 
 | api_key | SITELEAF_API_KEY | *required* | the siteleaf API key | 
 | api_secret | SITELEAF_API_SECRET | *required* | the siteleaf API secret | 
-| site | SITELEAF_API_KEY | *required* | the siteleaf site id to be updated | 
+| site | SITE_ID | *required* | the siteleaf site id to be updated | 
 | page | PAGE_NAME | `index` | the siteleaf page name to be updated | 
 | file | MD_FILE | `README.md` | the name of the Markdown file to read | 
 | publish | - | `false` | publish the site after updating |
