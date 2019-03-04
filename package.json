@@ -1,0 +1,45 @@
+{
+  "name": "siteleaf-updater",
+  "description": "update your index file in your Siteleaf site using your project README file",
+  "main": "index.js",
+  "dependencies": {
+    "chalk": "^2.4.2",
+    "convict": "^4.4.1",
+    "unirest": "^0.6.0"
+  },
+  "devDependencies": {
+    "eslint": "^5.14.1",
+    "eslint-config-standard": "^12.0.0",
+    "eslint-plugin-import": "^2.16.0",
+    "eslint-plugin-node": "^8.0.1",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-react": "^7.12.4",
+    "eslint-plugin-standard": "^4.0.0",
+    "npm-publish-git-tag": "^3.0.3",
+    "standard": "^12.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/gofunky/siteleaf-updater.git"
+  },
+  "keywords": [
+    "html",
+    "streaming",
+    "parser",
+    "transform",
+    "selectors",
+    "css"
+  ],
+  "author": {
+    "name": "Matthias Fax",
+    "email": "mat@fax.fyi",
+    "url": "https://github.com/gofunky/siteleaf-updater"
+  },
+  "license": "MIT",
+  "engine": {
+    "node": ">=0.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
