@@ -11,8 +11,6 @@ jobs:
   include:
     - stage: "Integration Tests"
       script: yarn test
-    - stage: "Publish README"
-      script: siteleaf-updater --site 5c7e78ecaf67d949a5972c82
     - stage: deploy
       script: npm-publish-git-tag
       if: tag IS present
