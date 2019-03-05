@@ -1,20 +1,16 @@
 language: node_js
 node_js: node
+cache: yarn
 
 branches:
   only:
-  - master
-  - /^[0-9]+\.[0-9]+\.[0-9]+/
-
-script: echo "Running tests against $(node -v) ..."
+    - master
+    - /^[0-9]+\.[0-9]+\.[0-9]+/
 
 jobs:
   include:
+    - stage: "Integration Tests"
+      script: yarn test
     - stage: deploy
       script: yarn publish
       if: tag IS present
-
-cache:
-  yarn: true
-  directories:
-    - node_modules
