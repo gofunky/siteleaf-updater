@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const unirest = require('unirest')
 const fs = require('fs')
 const convict = require('convict')
