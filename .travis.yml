@@ -12,5 +12,5 @@ jobs:
     - stage: "Integration Tests"
       script: yarn test
     - stage: deploy
-      script: yarn publish
+      script: npm-publish-git-tag
       if: tag IS present

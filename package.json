@@ -23,9 +23,7 @@
   },
   "scripts": {
     "test": "node ./cli.js",
-    "lint": "eslint --ignore-path .gitignore .",
-    "publish": "npm-publish-git-tag",
-    "postpublish": "siteleaf-updater --site 5c7e78ecaf67d949a5972c82"
+    "lint": "eslint --ignore-path .gitignore ."
   },
   "repository": {
     "type": "git",
