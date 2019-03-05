@@ -20,9 +20,9 @@ Hosting on the master branch has the advantage that files can be shared with the
 However, pages usually stand alone without a dependency to or from the project files.
 Hence, there might be numerous commits that cause an avoidable overhead to merges, CI, and pulls.
 
-### 2. Host it on a separate branch
+### 2. Host it on a dedicated branch
 
-Hosting the pages on a separate branch (e.g., `gh-pages`) has the benefit that this beforementioned overhead is avoided.
+Hosting the pages on a dedicated branch (e.g., `gh-pages`) has the benefit that this beforementioned overhead is avoided.
 Separate concerns are rooted in separate trees, just as it is supposed to be.
 However, normally, developers only want to publish their README with a few additions.
 There is no integrated way or known method in GitHub to sync the README file without hooks or different workarounds.
@@ -30,8 +30,9 @@ That circumstance impairs common maintenance and automation requirements.
 
 ## Solution
 
-1. Use [Siteleaf](https://www.siteleaf.com/), and publish to GitHub
-2. Setup your CI to use `siteleaf-updater` for automated doc updates
+1. Use [Siteleaf](https://www.siteleaf.com/), and publish or sync to a dedicated branch on GitHub.
+2. Create a page and assign it a path (by default, `index`).
+3. Setup your CI to use `siteleaf-updater` for automated doc updates.
 
 ## Parameters
 
