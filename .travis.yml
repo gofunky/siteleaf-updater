@@ -1,6 +1,6 @@
 language: node_js
 node_js:
-  - '11'
+  - 'node'
 
 branches:
   only:
@@ -12,8 +12,7 @@ script: echo "Running tests against $(node -v) ..."
 jobs:
   include:
     - stage: deploy
-      node_js: '11'
-      script: npm-publish-git-tag
+      script: yarn publish
       if: tag IS present
 
 cache:

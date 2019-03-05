@@ -2088,6 +2088,15 @@ signal-exit@^3.0.0, signal-exit@^3.0.2:
   resolved "https://registry.yarnpkg.com/signal-exit/-/signal-exit-3.0.2.tgz#b5fdc08f1287ea1178628e415e25132b73646c6d"
   integrity sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
 
+siteleaf-updater@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/siteleaf-updater/-/siteleaf-updater-0.1.0.tgz#3e380be7d71d912e2760e9cbb68fd4f1e3ea0a0d"
+  integrity sha512-8lBOhGxzwE9DsAdHMo5hi/n/Va+lnCk59iXK9DqSg8Fl4eyCaqSIuMg8mnBtVF4H5FGt7rG3IVJgJuzDxvK31g==
+  dependencies:
+    chalk "^2.4.2"
+    convict "^4.4.1"
+    unirest "^0.6.0"
+
 slice-ansi@1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/slice-ansi/-/slice-ansi-1.0.0.tgz#044f1a49d8842ff307aad6b505ed178bd950134d"

@@ -33,7 +33,7 @@ const config = convict({
     env: 'SITE_ID'
   },
   page: {
-    doc: 'the siteleaf page name to be updated',
+    doc: 'the siteleaf page path to be updated',
     format: String,
     default: 'index',
     arg: 'page',
@@ -58,13 +58,16 @@ config.validate()
 
 if (config.get('key') === '') error('no api key was given')
 if (config.get('secret') === '') error('no api secret was given')
-if (config.get('site') === '') error('no site id was given')
-
 const auth = Buffer.from(`${config.get('key')}:${config.get('secret')}`).toString('base64')
-const findPage = unirest('GET', `https://api.siteleaf.com/v2/sites/${config.get('site')}/pages`)
+
+if (config.get('site') === '') error('no site id was given')
+const site = config.get('site')
+
+const findPage = unirest('GET', `https://api.siteleaf.com/v2/sites/${site}/pages`)
 
 findPage.query({
-  'q': config.get('page')
+  'q': config.get('page'),
+  'extensions': 'markdown'
 })
 
 findPage.headers({
@@ -101,7 +104,7 @@ findPage.end(function (res) {
     if (!config.get('publish')) {
       console.log(chalk.green(`Page "${res.body[0].basename}" successfully updated`))
     } else {
-      const publishSite = unirest('GET', `https://api.siteleaf.com/v2/sites/${config.get('site')}/publish`)
+      const publishSite = unirest('POST', `https://api.siteleaf.com/v2/sites/${site}/publish`)
 
       publishSite.headers({
         'authorization': `Basic ${auth}`
