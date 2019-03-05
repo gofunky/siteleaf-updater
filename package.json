@@ -1,7 +1,9 @@
 {
   "name": "siteleaf-updater",
   "description": "update your index file in your Siteleaf site using your project README file",
-  "main": "index.js",
+  "bin": {
+    "siteleaf-updater": "./cli.js"
+  },
   "dependencies": {
     "chalk": "^2.4.2",
     "convict": "^4.4.1",
