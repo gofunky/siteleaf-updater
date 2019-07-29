@@ -6,7 +6,7 @@
   },
   "dependencies": {
     "chalk": "^2.4.2",
-    "convict": "^4.4.1",
+    "convict": "^5.1.0",
     "unirest": "^0.6.0"
   },
   "devDependencies": {
