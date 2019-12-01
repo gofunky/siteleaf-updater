@@ -33,7 +33,7 @@ jobs:
         env:
           CI: true
       - name: publish README
-        run: siteleaf-updater
+        run: $(yarn bin)/siteleaf-updater
         env:
           SITE_ID: 5c7e78ecaf67d949a5972c82
           PAGE_NAME: cli-test
