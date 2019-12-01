@@ -20,7 +20,7 @@
     "eslint-plugin-standard": "^4.0.0",
     "json": "^9.0.6",
     "siteleaf-updater": "^0.2.4",
-    "standard": "^12.0.1"
+    "standard": "^14.3.1"
   },
   "scripts": {
     "test": "node ./cli.js",
