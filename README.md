@@ -1,7 +1,7 @@
 # siteleaf-updater
 
 [![NPM version](https://img.shields.io/npm/v/siteleaf-updater.svg)](https://www.npmjs.com/package/siteleaf-updater)
-[![Build](https://travis-ci.com/gofunky/siteleaf-updater.svg?branch=master)](https://travis-ci.com/gofunky/siteleaf-updater)
+[![Actions Status](https://github.com/gofunky/siteleaf-updater/workflows/build/badge.svg)](https://github.com/gofunky/siteleaf-updater/actions)
 [![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg)](http://standardjs.com/)
 [![CodeFactor](https://www.codefactor.io/repository/github/gofunky/siteleaf-updater/badge)](https://www.codefactor.io/repository/github/gofunky/siteleaf-updater)
 [![GitHub License](https://img.shields.io/github/license/gofunky/siteleaf-updater.svg)](https://github.com/gofunky/siteleaf-updater/blob/master/LICENSE)
