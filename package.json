@@ -5,7 +5,7 @@
     "siteleaf-updater": "./cli.js"
   },
   "dependencies": {
-    "chalk": "^2.4.2",
+    "chalk": "^3.0.0",
     "convict": "^5.2.0",
     "unirest": "^0.6.0"
   },
