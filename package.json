@@ -19,7 +19,7 @@
     "eslint-plugin-react": "7.20.6",
     "eslint-plugin-standard": "4.0.1",
     "json": "9.0.6",
-    "siteleaf-updater": "0.2.4",
+    "siteleaf-updater": "1.1.0",
     "standard": "14.3.4"
   },
   "scripts": {
