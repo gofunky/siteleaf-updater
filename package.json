@@ -5,22 +5,22 @@
     "siteleaf-updater": "./cli.js"
   },
   "dependencies": {
-    "chalk": "^4.1.0",
-    "convict": "^6.0.0",
-    "unirest": "^0.6.0"
+    "chalk": "4.1.0",
+    "convict": "6.0.0",
+    "unirest": "0.6.0"
   },
   "devDependencies": {
-    "@hutson/npm-deploy-git-tag": "^6.0.0",
-    "eslint": "^7.7.0",
-    "eslint-config-standard": "^14.1.1",
-    "eslint-plugin-import": "^2.22.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^4.0.1",
-    "eslint-plugin-react": "^7.20.6",
-    "eslint-plugin-standard": "^4.0.1",
-    "json": "^9.0.6",
-    "siteleaf-updater": "^0.2.4",
-    "standard": "^14.3.4"
+    "@hutson/npm-deploy-git-tag": "6.0.0",
+    "eslint": "7.7.0",
+    "eslint-config-standard": "14.1.1",
+    "eslint-plugin-import": "2.22.0",
+    "eslint-plugin-node": "11.1.0",
+    "eslint-plugin-promise": "4.2.1",
+    "eslint-plugin-react": "7.20.6",
+    "eslint-plugin-standard": "4.0.1",
+    "json": "9.0.6",
+    "siteleaf-updater": "0.2.4",
+    "standard": "14.3.4"
   },
   "scripts": {
     "test": "node ./cli.js",
