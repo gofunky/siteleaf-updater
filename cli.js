@@ -20,7 +20,6 @@ try {
 }
 
 if (cfg.get('api-key') === '' || cfg.get('help') === true) {
-
   const header = `░██████╗██╗████████╗███████╗██╗░░░░░███████╗░█████╗░███████╗
 ██╔════╝██║╚══██╔══╝██╔════╝██║░░░░░██╔════╝██╔══██╗██╔════╝
 ╚█████╗░██║░░░██║░░░█████╗░░██║░░░░░█████╗░░███████║█████╗░░
@@ -38,7 +37,7 @@ if (cfg.get('api-key') === '' || cfg.get('help') === true) {
   const sections = [
     {
       header: chalk.blue(header),
-      raw: true,
+      raw: true
     },
     {
       header: 'siteleaf updater',
@@ -75,9 +74,7 @@ if (cfg.get('api-key') === '' || cfg.get('help') === true) {
   const usage = commandLineUsage(sections)
   console.log(usage)
   process.exitCode = 1
-
 } else {
-
     lib(cfg.get('api-key'), cfg.get('api-secret'), cfg.get('site'), cfg.get('page'),
       cfg.get('file'), cfg.get('publish'))
       .then(name => {
@@ -90,5 +87,4 @@ if (cfg.get('api-key') === '' || cfg.get('help') === true) {
       .catch(err => {
         console.error(beautyError(err))
       })
-
 }
