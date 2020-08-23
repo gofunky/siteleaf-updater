@@ -1,13 +1,21 @@
 name: build
 
-on: [push]
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         node-version: [10.x, 12.x, 13.x, 14.x]
+        os: [ubuntu-latest]
+    defaults:
+      run:
+        shell: bash
     name: node.js ${{ matrix.node-version }}
     steps:
       - uses: actions/checkout@v2.3.2
@@ -19,23 +27,16 @@ jobs:
         uses: actions/cache@v2.1.1
         with:
           path: node_modules
-          key: ${{ runner.OS }}-build-${{ hashFiles('**/yarn.lock') }}-${{ matrix.node-version }}
+          key: ${{ runner.OS }}-build-${{ matrix.node-version }}-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
-            ${{ runner.OS }}-build-${{ hashFiles('**/yarn.lock') }}
+            ${{ runner.OS }}-build-${{ matrix.node-version }}
             ${{ runner.OS }}-build
       - name: installing dependencies
         if: steps.cache-primes.outputs.cache-hit != 'true'
-        run: yarn install
+        run: yarn install --frozen-lockfile
         env:
           CI: true
       - name: running tests
         run: yarn test
         env:
           CI: true
-      - name: publish README
-        run: $(yarn bin)/siteleaf-updater
-        env:
-          SITE_ID: 5c7e78ecaf67d949a5972c82
-          PAGE_NAME: cli-test
-          SITELEAF_API_KEY: ${{ secrets.SITELEAF_API_KEY }}
-          SITELEAF_API_SECRET: ${{ secrets.SITELEAF_API_SECRET }}
