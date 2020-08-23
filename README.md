@@ -40,11 +40,26 @@ That circumstance impairs common maintenance and automation requirements.
 
 ## Parameters
 
-| CLI Parameter | Environment Variable | Default | Description |
-| ------ | ------ | ------ | ------ | 
-| api_key | SITELEAF_API_KEY | *required* | the siteleaf API key | 
-| api_secret | SITELEAF_API_SECRET | *required* | the siteleaf API secret | 
-| site | SITE_ID | *required* | the siteleaf site id to be updated | 
-| page | PAGE_NAME | `index` | the siteleaf page path to be updated | 
-| file | MD_FILE | `README.md` | the name of the Markdown file to read | 
-| publish | - | `false` | publish the site after updating |
+| Action Input | CLI Parameter | Environment Variable | Default | Description |  
+| ------ | ------ | ------ | ------ | ------ |  
+| api-key | api-key | SITELEAF_API_KEY | *required* | the siteleaf API key |   
+| api-secret | api-secret | SITELEAF_API_SECRET | *required* | the siteleaf API secret |   
+| site | site | SITE_ID | *required* | the siteleaf site id to be updated |   
+| page | page | PAGE_NAME | `index` | the siteleaf page path to be updated |   
+| file | file | MD_FILE | `README.md` | the name of the Markdown file to read |   
+| publish | publish | - | `false` | publish the site after updating |
+
+## Action Example
+
+```yaml
+steps:
+  - name: update site
+    uses: gofunky/siteleaf-updater@v1
+    with:
+      api-key: ${{ secrets.SITELEAF_KEY }}
+      api-secret: ${{ secrets.SITELEAF_SECRET }}
+      site: 'my-site'
+      page: 'contribution'
+      file: 'CONTRIBUTION.md'
+      publish: true
+```
