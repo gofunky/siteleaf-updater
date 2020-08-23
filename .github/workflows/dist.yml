@@ -3,6 +3,10 @@ name: check standard
 on:
   push:
     branches: [ master ]
+  pull_request:
+    paths:
+      - '**.js'
+      - 'yarn.lock'
 
 jobs:
   standard:
@@ -20,17 +24,21 @@ jobs:
       - name: running ncc
         run: ncc build action.js
       - name: creating pull request
-        id: cpr
+        if: ${{ github.ref == 'refs/heads/master' }}
         uses: peter-evans/create-pull-request@v3.1.2
         with:
-          commit-message: 'build(dist): update the distributed action script'
-          title: 'Update distributed action script'
+          commit-message: 'chore(dist): update the distributed action script'
+          title: 'chore(dist): Update distributed action script'
           body: |
             This pull requests updates the distributed version of the action script as described in the [GitHub Action docs](https://docs.github.com/en/actions/creating-actions/creating-a-javascript-action).
             Every update on the main branche will cause an update of this pull request. It only needs to be merged once a release is due.
           labels: |
             chore
           branch: dist
-      - name: Check outputs
-        run: |
-          echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
+      - name: committing changed files
+        if: ${{ github.ref != 'refs/heads/master' }}
+        uses: stefanzweifel/git-auto-commit-action@v4.4.1
+        with:
+          commit_message: 'chore(dist): update the distributed action script'
+          branch: ${{ github.head_ref }}
+          file_pattern: '*.js'
