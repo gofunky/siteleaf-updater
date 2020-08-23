@@ -9602,7 +9602,7 @@ module.exports = async function (key = '', secret = '', site = '', page = 'index
   const fileContent = await fs.readFile(file, 'utf8')
 
   await superagent
-    .post('PUT', `https://api.siteleaf.com/v2/pages/${res.body[0].id}`)
+    .post(`https://api.siteleaf.com/v2/pages/${res.body[0].id}`)
     .set('authorization', `Basic ${auth}`)
     .set('content-type', 'application/json')
     .send({
