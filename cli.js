@@ -19,7 +19,7 @@ try {
   console.error(beautyError(e))
 }
 
-if (cfg.get('api-key') === '' || cfg.get('help') === true) {
+if (cfg.get('api-key') === '' || cfg.get('help')) {
   const header = `░██████╗██╗████████╗███████╗██╗░░░░░███████╗░█████╗░███████╗
 ██╔════╝██║╚══██╔══╝██╔════╝██║░░░░░██╔════╝██╔══██╗██╔════╝
 ╚█████╗░██║░░░██║░░░█████╗░░██║░░░░░█████╗░░███████║█████╗░░
@@ -67,24 +67,26 @@ if (cfg.get('api-key') === '' || cfg.get('help') === true) {
             case 'file': { opt.typeLabel = 'file' }
           }
           return opt
-      })
+        })
     }
   ]
 
   const usage = commandLineUsage(sections)
   console.log(usage)
-  process.exitCode = 1
+  if (!cfg.get('help')) {
+    process.exitCode = 1
+  }
 } else {
-    lib(cfg.get('api-key'), cfg.get('api-secret'), cfg.get('site'), cfg.get('page'),
-      cfg.get('file'), cfg.get('publish'))
-      .then(name => {
-        if (cfg.get('publish')) {
-          console.info(`Page "${name}" was successfully updated and published`)
-        } else {
-          console.info(`Page "${name}" was successfully updated`)
-        }
-      })
-      .catch(err => {
-        console.error(beautyError(err))
-      })
+  lib(cfg.get('api-key'), cfg.get('api-secret'), cfg.get('site'), cfg.get('page'),
+    cfg.get('file'), cfg.get('publish'))
+    .then(name => {
+      if (cfg.get('publish')) {
+        console.info(`Page "${name}" was successfully updated and published`)
+      } else {
+        console.info(`Page "${name}" was successfully updated`)
+      }
+    })
+    .catch(err => {
+      console.error(beautyError(err))
+    })
 }
