@@ -6893,7 +6893,7 @@ function descending(a, b)
 const core = __webpack_require__(186)
 const lib = __webpack_require__(822)
 
-lib(core.getInput('key'), core.getInput('secret'), core.getInput('site'),
+lib(core.getInput('api-key'), core.getInput('api-secret'), core.getInput('site'),
   core.getInput('page'), core.getInput('file'), core.getInput('publish'))
   .then(name => {
     core.setOutput('name', name)
