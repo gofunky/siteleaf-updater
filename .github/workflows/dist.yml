@@ -41,4 +41,4 @@ jobs:
         with:
           commit_message: 'chore(dist): update the distributed action script'
           branch: ${{ github.head_ref }}
-          file_pattern: '*.js'
+          file_pattern: 'dist/index.js'
