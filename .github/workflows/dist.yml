@@ -1,4 +1,4 @@
-name: check standard
+name: build dist
 
 on:
   push:
