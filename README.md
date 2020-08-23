@@ -1,12 +1,16 @@
 # siteleaf-updater
 
-[![NPM version](https://img.shields.io/npm/v/siteleaf-updater.svg)](https://www.npmjs.com/package/siteleaf-updater)
-[![Actions Status](https://github.com/gofunky/siteleaf-updater/workflows/build/badge.svg)](https://github.com/gofunky/siteleaf-updater/actions)
-[![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg)](http://standardjs.com/)
-[![CodeFactor](https://www.codefactor.io/repository/github/gofunky/siteleaf-updater/badge)](https://www.codefactor.io/repository/github/gofunky/siteleaf-updater)
-[![GitHub License](https://img.shields.io/github/license/gofunky/siteleaf-updater.svg)](https://github.com/gofunky/siteleaf-updater/blob/master/LICENSE)
-[![GitHub last commit](https://img.shields.io/github/last-commit/gofunky/siteleaf-updater.svg)](https://github.com/gofunky/siteleaf-updater/commits/master)
-[![Dependabot Status](https://api.dependabot.com/badges/status?host=github&repo=gofunky/siteleaf-updater)](https://dependabot.com)
+[![GitHub Workflow Status (branch)](https://img.shields.io/github/workflow/status/gofunky/siteleaf-updater/build/master?style=for-the-badge)](https://github.com/gofunky/siteleaf-updater/actions)
+[![Renovate Status](https://img.shields.io/badge/renovate-enabled-green?style=for-the-badge&logo=renovatebot&color=1a1f6c)](https://app.renovatebot.com/dashboard#github/gofunky/siteleaf-updater)
+[![Libraries.io dependency status for latest release](https://img.shields.io/librariesio/release/npm/siteleaf-updater?style=for-the-badge)](https://libraries.io/npm/siteleaf-updater)
+[![Snyk Vulnerabilities for npm package](https://img.shields.io/snyk/vulnerabilities/npm/siteleaf-updater?style=for-the-badge)](https://snyk.io/test/github/gofunky/siteleaf-updater)
+[![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-purple.svg?style=for-the-badge)](https://standardjs.com)
+[![CodeFactor](https://www.codefactor.io/repository/github/gofunky/siteleaf-updater/badge?style=for-the-badge)](https://www.codefactor.io/repository/github/gofunky/siteleaf-updater)
+[![node-current](https://img.shields.io/node/v/siteleaf-updater?style=for-the-badge)](https://www.npmjs.com/package/siteleaf-updater)
+[![NPM version](https://img.shields.io/npm/v/siteleaf-updater?style=for-the-badge)](https://www.npmjs.com/package/siteleaf-updater)
+[![NPM Downloads](https://img.shields.io/npm/dm/siteleaf-updater?style=for-the-badge&color=ff69b4)](https://www.npmjs.com/package/siteleaf-updater)
+[![GitHub License](https://img.shields.io/github/license/gofunky/siteleaf-updater.svg?style=for-the-badge)](https://github.com/gofunky/siteleaf-updater/blob/master/LICENSE)
+[![GitHub last commit](https://img.shields.io/github/last-commit/gofunky/siteleaf-updater.svg?style=for-the-badge&color=9cf)](https://github.com/gofunky/siteleaf-updater/commits/master)
 
 update your index file in your Siteleaf site using your project README file
 
