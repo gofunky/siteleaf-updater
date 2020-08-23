@@ -68,12 +68,12 @@ const site = config.get('site')
 const findPage = unirest('GET', `https://api.siteleaf.com/v2/sites/${site}/pages`)
 
 findPage.query({
-  'q': config.get('page'),
-  'extensions': 'markdown'
+  q: config.get('page'),
+  extensions: 'markdown'
 })
 
 findPage.headers({
-  'authorization': `Basic ${auth}`
+  authorization: `Basic ${auth}`
 })
 
 findPage.end(function (res) {
@@ -83,7 +83,7 @@ findPage.end(function (res) {
   const pageRequest = unirest('PUT', `https://api.siteleaf.com/v2/pages/${res.body[0].id}`)
 
   pageRequest.headers({
-    'authorization': `Basic ${auth}`,
+    authorization: `Basic ${auth}`,
     'content-type': 'application/json'
   })
 
@@ -97,7 +97,7 @@ findPage.end(function (res) {
 
   pageRequest.type('json')
   pageRequest.send({
-    'body': fileContent
+    body: fileContent
   })
 
   pageRequest.end(function (pageRes) {
@@ -109,7 +109,7 @@ findPage.end(function (res) {
       const publishSite = unirest('POST', `https://api.siteleaf.com/v2/sites/${site}/publish`)
 
       publishSite.headers({
-        'authorization': `Basic ${auth}`
+        authorization: `Basic ${auth}`
       })
 
       publishSite.end(function (publishRes) {
