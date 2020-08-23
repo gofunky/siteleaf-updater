@@ -2172,10 +2172,10 @@ signal-exit@^3.0.2:
   resolved "https://registry.yarnpkg.com/signal-exit/-/signal-exit-3.0.2.tgz#b5fdc08f1287ea1178628e415e25132b73646c6d"
   integrity sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
 
-siteleaf-updater@1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/siteleaf-updater/-/siteleaf-updater-1.1.0.tgz#e5999fdef595d940775c44469c69d7f4ab361b3d"
-  integrity sha512-lhHs1yooc1K3otl+Z7qpnrmTR9AkE0M3LyjH7SziDamXNMaobtHQ7wwo66EpHUN13CMMw6wXuyFn7vT+bRVKOw==
+siteleaf-updater@1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/siteleaf-updater/-/siteleaf-updater-1.1.1.tgz#2638913af63f78e6696e909a4dbf581de6601237"
+  integrity sha512-P24P1AGo3LMcAiLPlErV/HVgr91ygf+0NyDkPNm5TkTU+v0YvOuqoK4WaMCZpg2jOgncxZLgBMj9C5E8Mw0dKQ==
   dependencies:
     chalk "4.1.0"
     convict "6.0.0"
