@@ -23,7 +23,8 @@
     "eslint-plugin-react": "7.20.6",
     "eslint-plugin-standard": "4.0.1",
     "json": "9.0.6",
-    "standard": "14.3.4"
+    "standard": "14.3.4",
+    "@vercel/ncc": "^0.23.0"
   },
   "scripts": {
     "test": "node ./cli.js --help"
