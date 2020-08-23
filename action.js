@@ -3,7 +3,7 @@
 const core = require('@actions/core')
 const lib = require('./lib')
 
-lib(core.getInput('key'), core.getInput('secret'), core.getInput('site'),
+lib(core.getInput('api-key'), core.getInput('api-secret'), core.getInput('site'),
   core.getInput('page'), core.getInput('file'), core.getInput('publish'))
   .then(name => {
     core.setOutput('name', name)
