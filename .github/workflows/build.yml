@@ -3,10 +3,20 @@ name: build
 on:
   push:
     branches: [ master ]
-  pull_request:
+  pull_request_target:
     branches: [ master ]
 
 jobs:
+  pre-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: 'wait for previous workflow'
+        uses: softprops/turnstyle@v1
+        with:
+          poll-interval-seconds: 10
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -19,6 +29,8 @@ jobs:
     name: node.js ${{ matrix.node-version }}
     steps:
       - uses: actions/checkout@v2.3.2
+        with:
+          ref: ${{ github.ref }}
       - name: setup node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v2.1.1
         with:
@@ -41,24 +53,49 @@ jobs:
         env:
           CI: true
   test:
-    needs: build
-    runs-on: ${{ matrix.os }}
-    if: github.ref == 'refs/heads/master'
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
+    needs: [build, pre-ci]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: create test file
+        run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
+      - name: determine test action path (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
+        run: echo "::set-env name=test-action::master"
+      - name: determine test action path (PR)
+        if: ${{ github.ref != 'refs/heads/master' }}
+        run: echo "::set-env name=test-action::${{ github.event.pull_request.repo.full_name }}"
+      - name: update site
+        id: siteleaf
+        uses: ${{ env.test-action }}@${{ github.ref }}
+        with:
+          api-key: ${{ secrets.SITELEAF_TEST_KEY }}
+          api-secret: ${{ secrets.SITELEAF_TEST_SECRET }}
+          site: ${{ secrets.SITELEAF_TEST_SITE }}
+          page: 'test'
+          file: 'test.md'
+      - name: Check outputs
+        run: |
+          echo "Siteleaf Page Name: ${{ steps.siteleaf.outputs.name }}"
+  verify:
+    needs: test
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v2.3.2
-      - name: update site
-        id: siteleaf
-        uses: gofunky/siteleaf-updater@master
         with:
-          api-key: ${{ secrets.SITELEAF_API_KEY }}
-          api-secret: ${{ secrets.SITELEAF_API_SECRET }}
-          site: ${{ secrets.SITELEAF_SITE_ID }}
-      - name: Check outputs
-        run: |
-          echo "Siteleaf Page Name: ${{ steps.siteleaf.outputs.name }}"
+          ref: 'siteleaf-test'
+      - name: verify test run
+        uses: nick-invision/retry@v1.0.4
+        with:
+          retry_wait_seconds: 10
+          timeout_minutes: 1
+          max_attempts: 3
+          command: |
+            git pull origin master
+            grep -Fxq "${{ github.sha }}" test.markdown.txt
+            grep -Fxq "${{ github.run_id }}" test.markdown.txt
