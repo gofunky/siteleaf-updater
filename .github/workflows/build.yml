@@ -66,7 +66,7 @@ jobs:
       - name: create test file
         run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
       - name: run cli test
-        run: node ./cli.js --site-id ${{ secrets.SITELEAF_TEST_SITE }}
+        run: node ./cli.js --site ${{ secrets.SITELEAF_TEST_SITE }}
         env:
           SITELEAF_API_KEY: ${{ secrets.SITELEAF_TEST_KEY }}
           SITELEAF_API_SECRET: ${{ secrets.SITELEAF_TEST_SECRET }}
