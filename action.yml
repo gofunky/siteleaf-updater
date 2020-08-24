@@ -1,10 +1,10 @@
 name: 'update siteleaf'
 description: |
-  update the index file of your project's Siteleaf project with your repository's README.md file
+  update the index file of your project's siteleaf project with your repository's README.md file
 inputs:
   api-key:
     description: |
-      the API key that grants access to this project's siteleaf.com API
+      the API key that grants access to this repository's siteleaf project
     required: true
     default: ''
     format: '*'
@@ -13,7 +13,7 @@ inputs:
     env: 'SITELEAF_API_KEY'
   api-secret:
     description: |
-      the API secret that grants access to this project's siteleaf.com API
+      the API secret that grants access to this repository's siteleaf project
     required: true
     default: ''
     format: '*'
@@ -22,20 +22,20 @@ inputs:
     env: 'SITELEAF_API_SECRET'
   site:
     description: |
-      the Siteleaf site id to be updated
+      the siteleaf site id to be updated
     required: true
     default: ''
     format: 'String'
     arg: 'site'
-    env: 'SITE_ID'
+    env: 'SITELEAF_SITE'
   page:
     description: |
-      the Siteleaf page path to be updated
+      the siteleaf page path to be updated
     required: false
     default: 'index'
     format: 'String'
     arg: 'page'
-    env: 'PAGE_NAME'
+    env: 'SITELEAF_PAGE'
   file:
     description: |
       the name of the local markdown file to read
@@ -43,10 +43,10 @@ inputs:
     default: 'README.md'
     format: 'String'
     arg: 'file'
-    env: 'MD_FILE'
+    env: 'SITELEAF_MD_SOURCE'
   publish:
     description: |
-      allows to publish the site after updating
+      allows publishing the site after updating
     required: false
     default: false
     format: 'Boolean'
@@ -60,7 +60,7 @@ inputs:
     arg: 'help'
 outputs:
   name:
-    description: 'the Siteleaf page name'
+    description: 'the siteleaf page name'
 runs:
   using: 'node12'
   main: 'dist/index.js'
