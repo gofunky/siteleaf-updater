@@ -62,7 +62,6 @@ jobs:
       - name: create test file
         run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
       - name: determine test action path (master)
-        if: ${{ github.ref == 'refs/heads/master' }}
         run: echo "::set-env name=test-action::master"
       - name: determine test action path (PR)
         if: ${{ github.ref != 'refs/heads/master' }}
