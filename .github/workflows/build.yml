@@ -101,7 +101,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2.3.2
         with:
-          ref: 'siteleaf-test'
+          repository: 'gofunky/siteleaf-test'
+          ref: 'master'
       - name: only use fast-forward pulls
         run: git config pull.ff only
       - name: verify test runs
