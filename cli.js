@@ -17,6 +17,7 @@ try {
   cfg.validate()
 } catch (e) {
   console.error(beautyError(e))
+  process.exitCode = 1
 }
 
 if (cfg.get('api-key') === '' || cfg.get('help')) {
@@ -89,5 +90,6 @@ if (cfg.get('api-key') === '' || cfg.get('help')) {
     })
     .catch(err => {
       console.error(beautyError(err))
+      process.exitCode = 1
     })
 }
