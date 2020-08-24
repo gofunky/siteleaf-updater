@@ -103,7 +103,7 @@ jobs:
           ref: 'siteleaf-test'
       - name: only use fast-forward pulls
         run: git config pull.ff only
-      - name: verify test run
+      - name: verify test runs
         uses: nick-invision/retry@v1.0.4
         with:
           retry_wait_seconds: 10
@@ -111,7 +111,13 @@ jobs:
           max_attempts: 3
           command: |
             git pull origin siteleaf-test
-            grep -Fxq "${{ github.sha }}" test-action.markdown
-            grep -Fxq "${{ github.run_id }}" test-action.markdown
-            grep -Fxq "${{ github.sha }}" test-cli.markdown
-            grep -Fxq "${{ github.run_id }}" test-cli.markdown
+            if grep -Fq "${{ github.sha }} by ${{ github.run_id }}" "test-action.markdown"; then 
+              echo "the action-based markdown push is verified"
+            else
+              echo "::warning file=test-action.markdown::the action-based markdown push can not be verified yet"
+              exit 1
+            if grep -Fq "${{ github.sha }} by ${{ github.run_id }}" "test-cli.markdown"; then 
+              echo "the cli-based markdown push is verified"
+            else
+              echo "::warning file=test-cli.markdown::the cli-based markdown push can not be verified yet"
+              exit 1  
