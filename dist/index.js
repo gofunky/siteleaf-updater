@@ -6893,14 +6893,16 @@ function descending(a, b)
 const core = __webpack_require__(186)
 const lib = __webpack_require__(822)
 
+const publish = String(core.getInput('publish')).toLowerCase() === 'true'
+
 lib(core.getInput('api-key'), core.getInput('api-secret'), core.getInput('site'),
-  core.getInput('page'), core.getInput('file'), core.getInput('publish'))
+  core.getInput('page'), core.getInput('file'), publish)
   .then(name => {
     core.setOutput('name', name)
-    if (core.getInput('publish')) {
-      console.info(`Page "${name}" was successfully updated and published`)
+    if (publish) {
+      core.info(`Page "${name}" was successfully updated and published`)
     } else {
-      console.info(`Page "${name}" was successfully updated`)
+      core.info(`Page "${name}" was successfully updated`)
     }
   })
   .catch(core.setFailed)
@@ -9601,7 +9603,7 @@ module.exports = async function (key = '', secret = '', site = '', page = 'index
 
   const fileContent = await fs.readFile(file, 'utf8')
 
-  /* await superagent
+  await superagent
     .put(`https://api.siteleaf.com/v2/pages/${res.body[0].id}`)
     .set('authorization', `Basic ${auth}`)
     .set('content-type', 'application/json')
@@ -9613,7 +9615,7 @@ module.exports = async function (key = '', secret = '', site = '', page = 'index
     await superagent
       .post(`https://api.siteleaf.com/v2/sites/${site}/publish`)
       .set('authorization', `Basic ${auth}`)
-  } */
+  }
 
   return res.body[0].basename
 }
