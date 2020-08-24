@@ -1,6 +1,6 @@
 {
   "name": "siteleaf-updater",
-  "description": "update your index file in your Siteleaf site using your project README file",
+  "description": "update the index file of your project's siteleaf project with your repository's README.md file",
   "bin": {
     "siteleaf-updater": "./cli.js"
   },
@@ -34,21 +34,27 @@
     "url": "http://github.com/gofunky/siteleaf-updater.git"
   },
   "keywords": [
-    "html",
-    "streaming",
-    "parser",
-    "transform",
-    "selectors",
-    "css"
+    "siteleaf",
+    "markdown",
+    "github-pages",
+    "update",
+    "index",
+    "ci",
+    "github-actions",
+    "action",
+    "docs",
+    "readme",
+    "siteleaf-site",
+    "sync"
   ],
   "author": {
-    "name": "Matthias Fax",
+    "name": "matfax",
     "email": "mat@fax.fyi",
     "url": "https://github.com/gofunky/siteleaf-updater"
   },
   "license": "MIT",
-  "engine": {
-    "node": ">= 0.10"
+  "engines": {
+    "node": ">= 10.20.0 <15"
   },
   "publishConfig": {
     "access": "public"
