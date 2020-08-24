@@ -69,7 +69,7 @@ jobs:
         run: echo "::set-env name=test-action::${{ github.event.pull_request.repo.full_name }}"
       - name: update site
         id: siteleaf
-        uses: ${{ jobs.test.env.test-action }}@${{ github.ref }}
+        uses: ${{ job.env.test-action }}@${{ github.ref }}
         with:
           api-key: ${{ secrets.SITELEAF_TEST_KEY }}
           api-secret: ${{ secrets.SITELEAF_TEST_SECRET }}
