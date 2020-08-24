@@ -24,7 +24,7 @@ jobs:
       - name: running ncc
         run: yarn run ncc build action.js
       - name: creating pull request
-        if: ${{ github.ref == 'refs/heads/master' }}
+        if: ${{ github.head_ref == '' }}
         uses: peter-evans/create-pull-request@v3.1.2
         with:
           commit-message: 'chore(dist): update the distributed action script'
@@ -36,7 +36,7 @@ jobs:
             chore
           branch: dist
       - name: committing changed files
-        if: ${{ github.ref != 'refs/heads/master' }}
+        if: ${{ github.head_ref != '' }}
         uses: stefanzweifel/git-auto-commit-action@v4.4.1
         with:
           commit_message: 'chore(dist): update the distributed action script'
