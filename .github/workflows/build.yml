@@ -103,6 +103,7 @@ jobs:
         with:
           repository: 'gofunky/siteleaf-test'
           ref: 'master'
+          token: ${{ secrets.PAT }}  
       - name: only use fast-forward pulls
         run: git config pull.ff only
       - name: verify test runs
