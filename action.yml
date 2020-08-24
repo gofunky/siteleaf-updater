@@ -1,6 +1,9 @@
 name: 'update siteleaf'
 description: |
   update the index file of your project's siteleaf project with your repository's README.md file
+branding:
+  icon: 'copy'
+  color: 'green'
 inputs:
   api-key:
     description: |
