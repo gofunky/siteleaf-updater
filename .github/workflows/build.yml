@@ -116,8 +116,10 @@ jobs:
             else
               echo "::warning file=test-action.markdown::the action-based markdown push can not be verified yet"
               exit 1
+            fi 
             if grep -Fq "${{ github.sha }} by ${{ github.run_id }}" "test-cli.markdown"; then 
               echo "the cli-based markdown push is verified"
             else
               echo "::warning file=test-cli.markdown::the cli-based markdown push can not be verified yet"
-              exit 1  
+              exit 1
+            fi
