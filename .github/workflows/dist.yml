@@ -17,9 +17,16 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: determine source branch (push)
+        if: ${{ github.eventName == 'push' }}
+        run: echo "::set-output name=repository::${{ github.repository }}"
+      - name: determine source branch (PR)
+        if: ${{ github.eventName != 'push' }}
+        run: echo "::set-output name=repository::${{ github.event.pull_request.head.repo.full_name }}"
       - uses: actions/checkout@v2.3.2
         with:
           ref: ${{ github.head_ref }}
+          repository: ${{ env.repository }}
           token: ${{ secrets.PAT }}
       - uses: bahmutov/npm-install@v1.4.3
       - name: running ncc
