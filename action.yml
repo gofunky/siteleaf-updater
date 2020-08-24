@@ -62,5 +62,5 @@ outputs:
   name:
     description: 'the Siteleaf page name'
 runs:
-  using: 'node12'
+  using: 'node14'
   main: 'dist/index.js'
