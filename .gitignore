@@ -114,3 +114,6 @@ fabric.properties
 
 # Editor-based Rest Client
 .idea/httpRequests
+
+# Local GitHub actor environment
+act/
