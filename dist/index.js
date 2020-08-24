@@ -6893,7 +6893,7 @@ function descending(a, b)
 const core = __webpack_require__(186)
 const lib = __webpack_require__(822)
 
-const publish = String(core.getInput('publish')).toLowerCase() === 'false'
+const publish = String(core.getInput("publish")).toLowerCase() === 'true'
 
 lib(core.getInput('api-key'), core.getInput('api-secret'), core.getInput('site'),
   core.getInput('page'), core.getInput('file'), publish)
