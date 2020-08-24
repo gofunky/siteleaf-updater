@@ -110,7 +110,7 @@ jobs:
           timeout_minutes: 1
           max_attempts: 3
           command: |
-            git pull origin master
+            git pull origin siteleaf-test
             grep -Fxq "${{ github.sha }}" test-action.markdown
             grep -Fxq "${{ github.run_id }}" test-action.markdown
             grep -Fxq "${{ github.sha }}" test-cli.markdown
