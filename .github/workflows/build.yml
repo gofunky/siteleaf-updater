@@ -52,35 +52,47 @@ jobs:
         run: yarn test
         env:
           CI: true
-  test:
+  test-cli:
     needs: [build, pre-ci]
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash
     steps:
+      - uses: actions/checkout@v2.3.2
+        with:
+          ref: ${{ github.ref }}
+      - uses: bahmutov/npm-install@v1.4.3
       - name: create test file
         run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
-      - name: determine test action path (master)
-        if: ${{ github.ref == 'refs/heads/master' }}
-        run: echo "::set-env name=test-action::master"
-      - name: determine test action path (PR)
-        if: ${{ github.ref != 'refs/heads/master' }}
-        run: echo "::set-env name=test-action::${{ github.event.pull_request.repo.full_name }}"
-      - name: update site
+      - name: run cli test
+        run: node ./cli.js --site-id ${{ secrets.SITELEAF_TEST_SITE }}
+        env:
+          SITELEAF_API_KEY: ${{ secrets.SITELEAF_TEST_KEY }}
+          SITELEAF_API_SECRET: ${{ secrets.SITELEAF_TEST_SECRET }}
+  test-action:
+    needs: [build, pre-ci]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v2.3.2
+        with:
+          ref: ${{ github.ref }}
+      - name: create test file
+        run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
+      - name: run action test
         id: siteleaf
-        uses: '${{ github.repository }}@${{ github.ref }}'
+        uses: .
         with:
           api-key: ${{ secrets.SITELEAF_TEST_KEY }}
           api-secret: ${{ secrets.SITELEAF_TEST_SECRET }}
           site: ${{ secrets.SITELEAF_TEST_SITE }}
-          page: 'test'
+          page: 'test-action'
           file: 'test.md'
-      - name: Check outputs
-        run: |
-          echo "Siteleaf Page Name: ${{ steps.siteleaf.outputs.name }}"
   verify:
-    needs: test
+    needs: [test-cli, test-action]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -97,5 +109,7 @@ jobs:
           max_attempts: 3
           command: |
             git pull origin master
-            grep -Fxq "${{ github.sha }}" test.markdown.txt
-            grep -Fxq "${{ github.run_id }}" test.markdown.txt
+            grep -Fxq "${{ github.sha }}" test-action.markdown.txt
+            grep -Fxq "${{ github.run_id }}" test-action.markdown.txt
+            grep -Fxq "${{ github.sha }}" test-cli.markdown.txt
+            grep -Fxq "${{ github.run_id }}" test-cli.markdown.txt
