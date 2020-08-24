@@ -3,7 +3,7 @@
 const core = require('@actions/core')
 const lib = require('./lib')
 
-const publish = String(core.getInput('publish')).toLowerCase() === 'false'
+const publish = String(core.getInput("publish")).toLowerCase() === 'true'
 
 lib(core.getInput('api-key'), core.getInput('api-secret'), core.getInput('site'),
   core.getInput('page'), core.getInput('file'), publish)
