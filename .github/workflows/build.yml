@@ -62,13 +62,14 @@ jobs:
       - name: create test file
         run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
       - name: determine test action path (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
         run: echo "::set-env name=test-action::master"
       - name: determine test action path (PR)
         if: ${{ github.ref != 'refs/heads/master' }}
         run: echo "::set-env name=test-action::${{ github.event.pull_request.repo.full_name }}"
       - name: update site
         id: siteleaf
-        uses: '${{ env.test-action }}@${{ github.ref }}'
+        uses: '${{ github.repository }}@${{ github.ref }}'
         with:
           api-key: ${{ secrets.SITELEAF_TEST_KEY }}
           api-secret: ${{ secrets.SITELEAF_TEST_SECRET }}
