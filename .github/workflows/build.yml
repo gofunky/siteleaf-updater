@@ -14,6 +14,7 @@ jobs:
       - name: 'wait for previous workflow'
         uses: softprops/turnstyle@v1
         with:
+          same-branch-only: false
           poll-interval-seconds: 10
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
