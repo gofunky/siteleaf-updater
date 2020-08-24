@@ -84,7 +84,7 @@ jobs:
         run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
       - name: run action test
         id: siteleaf
-        uses: .
+        uses: ./
         with:
           api-key: ${{ secrets.SITELEAF_TEST_KEY }}
           api-secret: ${{ secrets.SITELEAF_TEST_SECRET }}
