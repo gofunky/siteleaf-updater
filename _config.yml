@@ -1,7 +1,7 @@
 ---
 title: siteleaf-updater
 timezone: Europe/Berlin
-theme: aterenin/minima-reboot
+remote_theme: aterenin/minima-reboot
 footer_icons:
   - username: gofunky/siteleaf-updater
     url: https://github.com/gofunky/siteleaf-updater
