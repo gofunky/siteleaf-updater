@@ -7,21 +7,10 @@ on:
     branches: [ master ]
 
 jobs:
-  prepare:
+  wait:
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    outputs:
-      repository: ${{ steps.source.outputs.repository }}
     steps:
-      - name: determine source repository (push)
-        if: ${{ github.event_name == 'push' }}
-        run: echo "::set-env name=repository::${{ github.repository }}"
-      - name: determine source repository (PR)
-        if: ${{ github.event_name != 'push' }}
-        run: echo "::set-env name=repository::${{ github.event.pull_request.head.repo.full_name }}"
-      - name: store source repository
-        id: source
-        run: echo "::set-output name=repository::${{ env.repository }}"
       - name: 'wait for previous workflows to finish'
         uses: softprops/turnstyle@v1
         with:
@@ -30,7 +19,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build:
-    needs: prepare
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -44,7 +32,7 @@ jobs:
       - uses: actions/checkout@v2.3.2
         with:
           ref: ${{ github.head_ref }}
-          repository: ${{ needs.prepare.outputs.repository }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
       - name: setup node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v2.1.1
         with:
@@ -67,7 +55,7 @@ jobs:
         env:
           CI: true
   test-cli:
-    needs: [prepare, build]
+    needs: [wait, build]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -76,7 +64,7 @@ jobs:
       - uses: actions/checkout@v2.3.2
         with:
           ref: ${{ github.head_ref }}
-          repository: ${{ needs.prepare.outputs.repository }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
       - uses: bahmutov/npm-install@v1.4.3
       - name: create test file
         run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
@@ -86,7 +74,7 @@ jobs:
           SITELEAF_API_KEY: ${{ secrets.SITELEAF_TEST_KEY }}
           SITELEAF_API_SECRET: ${{ secrets.SITELEAF_TEST_SECRET }}
   test-action:
-    needs: [prepare, build]
+    needs: [wait, build]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -95,7 +83,7 @@ jobs:
       - uses: actions/checkout@v2.3.2
         with:
           ref: ${{ github.head_ref }}
-          repository: ${{ needs.prepare.outputs.repository }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
       - name: create test file
         run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
       - name: run action test
