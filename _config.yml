@@ -1,7 +1,6 @@
 ---
 title: siteleaf-updater
 timezone: Europe/Berlin
-remote_theme: aterenin/minima-reboot
 collections:
   posts:
     title: Posts
