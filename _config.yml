@@ -11,3 +11,4 @@ collections:
 remote_theme: chromatical/jekyll-materialdocs
 copyright: gofunky
 mdl_colors: yellow-light_green
+search: false
