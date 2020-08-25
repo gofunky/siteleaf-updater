@@ -8,7 +8,7 @@ collections:
   uploads:
     title: Uploads
     output: true
-remote_theme: aterenin/minima-reboot
+remote_theme: chromatical/jekyll-materialdocs
 footer_icons:
 - username: gofunky/siteleaf-updater
   url: https://github.com/gofunky/siteleaf-updater
