@@ -27,7 +27,9 @@
     "@vercel/ncc": "0.24.0"
   },
   "scripts": {
-    "test": "node ./cli.js --help"
+    "test": "node ./cli.js --help",
+    "lint": "eslint",
+    "deploy": "npm-deploy-git-tag"
   },
   "repository": {
     "type": "git",
