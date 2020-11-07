@@ -1405,6 +1405,831 @@ CombinedStream.prototype._emitError = function(err) {
 
 /***/ }),
 
+/***/ 8222:
+/***/ ((module, exports, __webpack_require__) => {
+
+/* eslint-env browser */
+
+/**
+ * This is the web browser implementation of `debug()`.
+ */
+
+exports.log = log;
+exports.formatArgs = formatArgs;
+exports.save = save;
+exports.load = load;
+exports.useColors = useColors;
+exports.storage = localstorage();
+
+/**
+ * Colors.
+ */
+
+exports.colors = [
+	'#0000CC',
+	'#0000FF',
+	'#0033CC',
+	'#0033FF',
+	'#0066CC',
+	'#0066FF',
+	'#0099CC',
+	'#0099FF',
+	'#00CC00',
+	'#00CC33',
+	'#00CC66',
+	'#00CC99',
+	'#00CCCC',
+	'#00CCFF',
+	'#3300CC',
+	'#3300FF',
+	'#3333CC',
+	'#3333FF',
+	'#3366CC',
+	'#3366FF',
+	'#3399CC',
+	'#3399FF',
+	'#33CC00',
+	'#33CC33',
+	'#33CC66',
+	'#33CC99',
+	'#33CCCC',
+	'#33CCFF',
+	'#6600CC',
+	'#6600FF',
+	'#6633CC',
+	'#6633FF',
+	'#66CC00',
+	'#66CC33',
+	'#9900CC',
+	'#9900FF',
+	'#9933CC',
+	'#9933FF',
+	'#99CC00',
+	'#99CC33',
+	'#CC0000',
+	'#CC0033',
+	'#CC0066',
+	'#CC0099',
+	'#CC00CC',
+	'#CC00FF',
+	'#CC3300',
+	'#CC3333',
+	'#CC3366',
+	'#CC3399',
+	'#CC33CC',
+	'#CC33FF',
+	'#CC6600',
+	'#CC6633',
+	'#CC9900',
+	'#CC9933',
+	'#CCCC00',
+	'#CCCC33',
+	'#FF0000',
+	'#FF0033',
+	'#FF0066',
+	'#FF0099',
+	'#FF00CC',
+	'#FF00FF',
+	'#FF3300',
+	'#FF3333',
+	'#FF3366',
+	'#FF3399',
+	'#FF33CC',
+	'#FF33FF',
+	'#FF6600',
+	'#FF6633',
+	'#FF9900',
+	'#FF9933',
+	'#FFCC00',
+	'#FFCC33'
+];
+
+/**
+ * Currently only WebKit-based Web Inspectors, Firefox >= v31,
+ * and the Firebug extension (any Firefox version) are known
+ * to support "%c" CSS customizations.
+ *
+ * TODO: add a `localStorage` variable to explicitly enable/disable colors
+ */
+
+// eslint-disable-next-line complexity
+function useColors() {
+	// NB: In an Electron preload script, document will be defined but not fully
+	// initialized. Since we know we're in Chrome, we'll just detect this case
+	// explicitly
+	if (typeof window !== 'undefined' && window.process && (window.process.type === 'renderer' || window.process.__nwjs)) {
+		return true;
+	}
+
+	// Internet Explorer and Edge do not support colors.
+	if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
+		return false;
+	}
+
+	// Is webkit? http://stackoverflow.com/a/16459606/376773
+	// document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
+	return (typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance) ||
+		// Is firebug? http://stackoverflow.com/a/398120/376773
+		(typeof window !== 'undefined' && window.console && (window.console.firebug || (window.console.exception && window.console.table))) ||
+		// Is firefox >= v31?
+		// https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
+		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/) && parseInt(RegExp.$1, 10) >= 31) ||
+		// Double check webkit in userAgent just in case we are in a worker
+		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/));
+}
+
+/**
+ * Colorize log arguments if enabled.
+ *
+ * @api public
+ */
+
+function formatArgs(args) {
+	args[0] = (this.useColors ? '%c' : '') +
+		this.namespace +
+		(this.useColors ? ' %c' : ' ') +
+		args[0] +
+		(this.useColors ? '%c ' : ' ') +
+		'+' + module.exports.humanize(this.diff);
+
+	if (!this.useColors) {
+		return;
+	}
+
+	const c = 'color: ' + this.color;
+	args.splice(1, 0, c, 'color: inherit');
+
+	// The final "%c" is somewhat tricky, because there could be other
+	// arguments passed either before or after the %c, so we need to
+	// figure out the correct index to insert the CSS into
+	let index = 0;
+	let lastC = 0;
+	args[0].replace(/%[a-zA-Z%]/g, match => {
+		if (match === '%%') {
+			return;
+		}
+		index++;
+		if (match === '%c') {
+			// We only are interested in the *last* %c
+			// (the user may have provided their own)
+			lastC = index;
+		}
+	});
+
+	args.splice(lastC, 0, c);
+}
+
+/**
+ * Invokes `console.log()` when available.
+ * No-op when `console.log` is not a "function".
+ *
+ * @api public
+ */
+function log(...args) {
+	// This hackery is required for IE8/9, where
+	// the `console.log` function doesn't have 'apply'
+	return typeof console === 'object' &&
+		console.log &&
+		console.log(...args);
+}
+
+/**
+ * Save `namespaces`.
+ *
+ * @param {String} namespaces
+ * @api private
+ */
+function save(namespaces) {
+	try {
+		if (namespaces) {
+			exports.storage.setItem('debug', namespaces);
+		} else {
+			exports.storage.removeItem('debug');
+		}
+	} catch (error) {
+		// Swallow
+		// XXX (@Qix-) should we be logging these?
+	}
+}
+
+/**
+ * Load `namespaces`.
+ *
+ * @return {String} returns the previously persisted debug modes
+ * @api private
+ */
+function load() {
+	let r;
+	try {
+		r = exports.storage.getItem('debug');
+	} catch (error) {
+		// Swallow
+		// XXX (@Qix-) should we be logging these?
+	}
+
+	// If debug isn't set in LS, and we're in Electron, try to load $DEBUG
+	if (!r && typeof process !== 'undefined' && 'env' in process) {
+		r = process.env.DEBUG;
+	}
+
+	return r;
+}
+
+/**
+ * Localstorage attempts to return the localstorage.
+ *
+ * This is necessary because safari throws
+ * when a user disables cookies/localstorage
+ * and you attempt to access it.
+ *
+ * @return {LocalStorage}
+ * @api private
+ */
+
+function localstorage() {
+	try {
+		// TVMLKit (Apple TV JS Runtime) does not have a window object, just localStorage in the global context
+		// The Browser also has localStorage in the global context.
+		return localStorage;
+	} catch (error) {
+		// Swallow
+		// XXX (@Qix-) should we be logging these?
+	}
+}
+
+module.exports = __webpack_require__(6243)(exports);
+
+const {formatters} = module.exports;
+
+/**
+ * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
+ */
+
+formatters.j = function (v) {
+	try {
+		return JSON.stringify(v);
+	} catch (error) {
+		return '[UnexpectedJSONParseError]: ' + error.message;
+	}
+};
+
+
+/***/ }),
+
+/***/ 6243:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+
+/**
+ * This is the common logic for both the Node.js and web browser
+ * implementations of `debug()`.
+ */
+
+function setup(env) {
+	createDebug.debug = createDebug;
+	createDebug.default = createDebug;
+	createDebug.coerce = coerce;
+	createDebug.disable = disable;
+	createDebug.enable = enable;
+	createDebug.enabled = enabled;
+	createDebug.humanize = __webpack_require__(900);
+
+	Object.keys(env).forEach(key => {
+		createDebug[key] = env[key];
+	});
+
+	/**
+	* Active `debug` instances.
+	*/
+	createDebug.instances = [];
+
+	/**
+	* The currently active debug mode names, and names to skip.
+	*/
+
+	createDebug.names = [];
+	createDebug.skips = [];
+
+	/**
+	* Map of special "%n" handling functions, for the debug "format" argument.
+	*
+	* Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
+	*/
+	createDebug.formatters = {};
+
+	/**
+	* Selects a color for a debug namespace
+	* @param {String} namespace The namespace string for the for the debug instance to be colored
+	* @return {Number|String} An ANSI color code for the given namespace
+	* @api private
+	*/
+	function selectColor(namespace) {
+		let hash = 0;
+
+		for (let i = 0; i < namespace.length; i++) {
+			hash = ((hash << 5) - hash) + namespace.charCodeAt(i);
+			hash |= 0; // Convert to 32bit integer
+		}
+
+		return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
+	}
+	createDebug.selectColor = selectColor;
+
+	/**
+	* Create a debugger with the given `namespace`.
+	*
+	* @param {String} namespace
+	* @return {Function}
+	* @api public
+	*/
+	function createDebug(namespace) {
+		let prevTime;
+
+		function debug(...args) {
+			// Disabled?
+			if (!debug.enabled) {
+				return;
+			}
+
+			const self = debug;
+
+			// Set `diff` timestamp
+			const curr = Number(new Date());
+			const ms = curr - (prevTime || curr);
+			self.diff = ms;
+			self.prev = prevTime;
+			self.curr = curr;
+			prevTime = curr;
+
+			args[0] = createDebug.coerce(args[0]);
+
+			if (typeof args[0] !== 'string') {
+				// Anything else let's inspect with %O
+				args.unshift('%O');
+			}
+
+			// Apply any `formatters` transformations
+			let index = 0;
+			args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
+				// If we encounter an escaped % then don't increase the array index
+				if (match === '%%') {
+					return match;
+				}
+				index++;
+				const formatter = createDebug.formatters[format];
+				if (typeof formatter === 'function') {
+					const val = args[index];
+					match = formatter.call(self, val);
+
+					// Now we need to remove `args[index]` since it's inlined in the `format`
+					args.splice(index, 1);
+					index--;
+				}
+				return match;
+			});
+
+			// Apply env-specific formatting (colors, etc.)
+			createDebug.formatArgs.call(self, args);
+
+			const logFn = self.log || createDebug.log;
+			logFn.apply(self, args);
+		}
+
+		debug.namespace = namespace;
+		debug.enabled = createDebug.enabled(namespace);
+		debug.useColors = createDebug.useColors();
+		debug.color = selectColor(namespace);
+		debug.destroy = destroy;
+		debug.extend = extend;
+		// Debug.formatArgs = formatArgs;
+		// debug.rawLog = rawLog;
+
+		// env-specific initialization logic for debug instances
+		if (typeof createDebug.init === 'function') {
+			createDebug.init(debug);
+		}
+
+		createDebug.instances.push(debug);
+
+		return debug;
+	}
+
+	function destroy() {
+		const index = createDebug.instances.indexOf(this);
+		if (index !== -1) {
+			createDebug.instances.splice(index, 1);
+			return true;
+		}
+		return false;
+	}
+
+	function extend(namespace, delimiter) {
+		const newDebug = createDebug(this.namespace + (typeof delimiter === 'undefined' ? ':' : delimiter) + namespace);
+		newDebug.log = this.log;
+		return newDebug;
+	}
+
+	/**
+	* Enables a debug mode by namespaces. This can include modes
+	* separated by a colon and wildcards.
+	*
+	* @param {String} namespaces
+	* @api public
+	*/
+	function enable(namespaces) {
+		createDebug.save(namespaces);
+
+		createDebug.names = [];
+		createDebug.skips = [];
+
+		let i;
+		const split = (typeof namespaces === 'string' ? namespaces : '').split(/[\s,]+/);
+		const len = split.length;
+
+		for (i = 0; i < len; i++) {
+			if (!split[i]) {
+				// ignore empty strings
+				continue;
+			}
+
+			namespaces = split[i].replace(/\*/g, '.*?');
+
+			if (namespaces[0] === '-') {
+				createDebug.skips.push(new RegExp('^' + namespaces.substr(1) + '$'));
+			} else {
+				createDebug.names.push(new RegExp('^' + namespaces + '$'));
+			}
+		}
+
+		for (i = 0; i < createDebug.instances.length; i++) {
+			const instance = createDebug.instances[i];
+			instance.enabled = createDebug.enabled(instance.namespace);
+		}
+	}
+
+	/**
+	* Disable debug output.
+	*
+	* @return {String} namespaces
+	* @api public
+	*/
+	function disable() {
+		const namespaces = [
+			...createDebug.names.map(toNamespace),
+			...createDebug.skips.map(toNamespace).map(namespace => '-' + namespace)
+		].join(',');
+		createDebug.enable('');
+		return namespaces;
+	}
+
+	/**
+	* Returns true if the given mode name is enabled, false otherwise.
+	*
+	* @param {String} name
+	* @return {Boolean}
+	* @api public
+	*/
+	function enabled(name) {
+		if (name[name.length - 1] === '*') {
+			return true;
+		}
+
+		let i;
+		let len;
+
+		for (i = 0, len = createDebug.skips.length; i < len; i++) {
+			if (createDebug.skips[i].test(name)) {
+				return false;
+			}
+		}
+
+		for (i = 0, len = createDebug.names.length; i < len; i++) {
+			if (createDebug.names[i].test(name)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	* Convert regexp to namespace
+	*
+	* @param {RegExp} regxep
+	* @return {String} namespace
+	* @api private
+	*/
+	function toNamespace(regexp) {
+		return regexp.toString()
+			.substring(2, regexp.toString().length - 2)
+			.replace(/\.\*\?$/, '*');
+	}
+
+	/**
+	* Coerce `val`.
+	*
+	* @param {Mixed} val
+	* @return {Mixed}
+	* @api private
+	*/
+	function coerce(val) {
+		if (val instanceof Error) {
+			return val.stack || val.message;
+		}
+		return val;
+	}
+
+	createDebug.enable(createDebug.load());
+
+	return createDebug;
+}
+
+module.exports = setup;
+
+
+/***/ }),
+
+/***/ 8237:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+/**
+ * Detect Electron renderer / nwjs process, which is node, but we should
+ * treat as a browser.
+ */
+
+if (typeof process === 'undefined' || process.type === 'renderer' || process.browser === true || process.__nwjs) {
+	module.exports = __webpack_require__(8222);
+} else {
+	module.exports = __webpack_require__(5332);
+}
+
+
+/***/ }),
+
+/***/ 5332:
+/***/ ((module, exports, __webpack_require__) => {
+
+/**
+ * Module dependencies.
+ */
+
+const tty = __webpack_require__(3867);
+const util = __webpack_require__(1669);
+
+/**
+ * This is the Node.js implementation of `debug()`.
+ */
+
+exports.init = init;
+exports.log = log;
+exports.formatArgs = formatArgs;
+exports.save = save;
+exports.load = load;
+exports.useColors = useColors;
+
+/**
+ * Colors.
+ */
+
+exports.colors = [6, 2, 3, 4, 5, 1];
+
+try {
+	// Optional dependency (as in, doesn't need to be installed, NOT like optionalDependencies in package.json)
+	// eslint-disable-next-line import/no-extraneous-dependencies
+	const supportsColor = __webpack_require__(9318);
+
+	if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
+		exports.colors = [
+			20,
+			21,
+			26,
+			27,
+			32,
+			33,
+			38,
+			39,
+			40,
+			41,
+			42,
+			43,
+			44,
+			45,
+			56,
+			57,
+			62,
+			63,
+			68,
+			69,
+			74,
+			75,
+			76,
+			77,
+			78,
+			79,
+			80,
+			81,
+			92,
+			93,
+			98,
+			99,
+			112,
+			113,
+			128,
+			129,
+			134,
+			135,
+			148,
+			149,
+			160,
+			161,
+			162,
+			163,
+			164,
+			165,
+			166,
+			167,
+			168,
+			169,
+			170,
+			171,
+			172,
+			173,
+			178,
+			179,
+			184,
+			185,
+			196,
+			197,
+			198,
+			199,
+			200,
+			201,
+			202,
+			203,
+			204,
+			205,
+			206,
+			207,
+			208,
+			209,
+			214,
+			215,
+			220,
+			221
+		];
+	}
+} catch (error) {
+	// Swallow - we only care if `supports-color` is available; it doesn't have to be.
+}
+
+/**
+ * Build up the default `inspectOpts` object from the environment variables.
+ *
+ *   $ DEBUG_COLORS=no DEBUG_DEPTH=10 DEBUG_SHOW_HIDDEN=enabled node script.js
+ */
+
+exports.inspectOpts = Object.keys(process.env).filter(key => {
+	return /^debug_/i.test(key);
+}).reduce((obj, key) => {
+	// Camel-case
+	const prop = key
+		.substring(6)
+		.toLowerCase()
+		.replace(/_([a-z])/g, (_, k) => {
+			return k.toUpperCase();
+		});
+
+	// Coerce string value into JS value
+	let val = process.env[key];
+	if (/^(yes|on|true|enabled)$/i.test(val)) {
+		val = true;
+	} else if (/^(no|off|false|disabled)$/i.test(val)) {
+		val = false;
+	} else if (val === 'null') {
+		val = null;
+	} else {
+		val = Number(val);
+	}
+
+	obj[prop] = val;
+	return obj;
+}, {});
+
+/**
+ * Is stdout a TTY? Colored output is enabled when `true`.
+ */
+
+function useColors() {
+	return 'colors' in exports.inspectOpts ?
+		Boolean(exports.inspectOpts.colors) :
+		tty.isatty(process.stderr.fd);
+}
+
+/**
+ * Adds ANSI color escape codes if enabled.
+ *
+ * @api public
+ */
+
+function formatArgs(args) {
+	const {namespace: name, useColors} = this;
+
+	if (useColors) {
+		const c = this.color;
+		const colorCode = '\u001B[3' + (c < 8 ? c : '8;5;' + c);
+		const prefix = `  ${colorCode};1m${name} \u001B[0m`;
+
+		args[0] = prefix + args[0].split('\n').join('\n' + prefix);
+		args.push(colorCode + 'm+' + module.exports.humanize(this.diff) + '\u001B[0m');
+	} else {
+		args[0] = getDate() + name + ' ' + args[0];
+	}
+}
+
+function getDate() {
+	if (exports.inspectOpts.hideDate) {
+		return '';
+	}
+	return new Date().toISOString() + ' ';
+}
+
+/**
+ * Invokes `util.format()` with the specified arguments and writes to stderr.
+ */
+
+function log(...args) {
+	return process.stderr.write(util.format(...args) + '\n');
+}
+
+/**
+ * Save `namespaces`.
+ *
+ * @param {String} namespaces
+ * @api private
+ */
+function save(namespaces) {
+	if (namespaces) {
+		process.env.DEBUG = namespaces;
+	} else {
+		// If you set a process.env field to null or undefined, it gets cast to the
+		// string 'null' or 'undefined'. Just delete instead.
+		delete process.env.DEBUG;
+	}
+}
+
+/**
+ * Load `namespaces`.
+ *
+ * @return {String} returns the previously persisted debug modes
+ * @api private
+ */
+
+function load() {
+	return process.env.DEBUG;
+}
+
+/**
+ * Init logic for `debug` instances.
+ *
+ * Create a new `inspectOpts` object in case `useColors` is set
+ * differently for a particular `debug` instance.
+ */
+
+function init(debug) {
+	debug.inspectOpts = {};
+
+	const keys = Object.keys(exports.inspectOpts);
+	for (let i = 0; i < keys.length; i++) {
+		debug.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
+	}
+}
+
+module.exports = __webpack_require__(6243)(exports);
+
+const {formatters} = module.exports;
+
+/**
+ * Map %o to `util.inspect()`, all on a single line.
+ */
+
+formatters.o = function (v) {
+	this.inspectOpts.colors = this.useColors;
+	return util.inspect(v, this.inspectOpts)
+		.replace(/\s*\n\s*/g, ' ');
+};
+
+/**
+ * Map %O to `util.inspect()`, allowing multiple lines if needed.
+ */
+
+formatters.O = function (v) {
+	this.inspectOpts.colors = this.useColors;
+	return util.inspect(v, this.inspectOpts);
+};
+
+
+/***/ }),
+
 /***/ 8611:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
@@ -3741,6 +4566,175 @@ module.exports = {"application/andrew-inset":["ez"],"application/applixware":["a
 
 /***/ }),
 
+/***/ 900:
+/***/ ((module) => {
+
+/**
+ * Helpers.
+ */
+
+var s = 1000;
+var m = s * 60;
+var h = m * 60;
+var d = h * 24;
+var w = d * 7;
+var y = d * 365.25;
+
+/**
+ * Parse or format the given `val`.
+ *
+ * Options:
+ *
+ *  - `long` verbose formatting [false]
+ *
+ * @param {String|Number} val
+ * @param {Object} [options]
+ * @throws {Error} throw an error if val is not a non-empty string or a number
+ * @return {String|Number}
+ * @api public
+ */
+
+module.exports = function(val, options) {
+  options = options || {};
+  var type = typeof val;
+  if (type === 'string' && val.length > 0) {
+    return parse(val);
+  } else if (type === 'number' && isNaN(val) === false) {
+    return options.long ? fmtLong(val) : fmtShort(val);
+  }
+  throw new Error(
+    'val is not a non-empty string or a valid number. val=' +
+      JSON.stringify(val)
+  );
+};
+
+/**
+ * Parse the given `str` and return milliseconds.
+ *
+ * @param {String} str
+ * @return {Number}
+ * @api private
+ */
+
+function parse(str) {
+  str = String(str);
+  if (str.length > 100) {
+    return;
+  }
+  var match = /^((?:\d+)?\-?\d?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
+    str
+  );
+  if (!match) {
+    return;
+  }
+  var n = parseFloat(match[1]);
+  var type = (match[2] || 'ms').toLowerCase();
+  switch (type) {
+    case 'years':
+    case 'year':
+    case 'yrs':
+    case 'yr':
+    case 'y':
+      return n * y;
+    case 'weeks':
+    case 'week':
+    case 'w':
+      return n * w;
+    case 'days':
+    case 'day':
+    case 'd':
+      return n * d;
+    case 'hours':
+    case 'hour':
+    case 'hrs':
+    case 'hr':
+    case 'h':
+      return n * h;
+    case 'minutes':
+    case 'minute':
+    case 'mins':
+    case 'min':
+    case 'm':
+      return n * m;
+    case 'seconds':
+    case 'second':
+    case 'secs':
+    case 'sec':
+    case 's':
+      return n * s;
+    case 'milliseconds':
+    case 'millisecond':
+    case 'msecs':
+    case 'msec':
+    case 'ms':
+      return n;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Short format for `ms`.
+ *
+ * @param {Number} ms
+ * @return {String}
+ * @api private
+ */
+
+function fmtShort(ms) {
+  var msAbs = Math.abs(ms);
+  if (msAbs >= d) {
+    return Math.round(ms / d) + 'd';
+  }
+  if (msAbs >= h) {
+    return Math.round(ms / h) + 'h';
+  }
+  if (msAbs >= m) {
+    return Math.round(ms / m) + 'm';
+  }
+  if (msAbs >= s) {
+    return Math.round(ms / s) + 's';
+  }
+  return ms + 'ms';
+}
+
+/**
+ * Long format for `ms`.
+ *
+ * @param {Number} ms
+ * @return {String}
+ * @api private
+ */
+
+function fmtLong(ms) {
+  var msAbs = Math.abs(ms);
+  if (msAbs >= d) {
+    return plural(ms, msAbs, d, 'day');
+  }
+  if (msAbs >= h) {
+    return plural(ms, msAbs, h, 'hour');
+  }
+  if (msAbs >= m) {
+    return plural(ms, msAbs, m, 'minute');
+  }
+  if (msAbs >= s) {
+    return plural(ms, msAbs, s, 'second');
+  }
+  return ms + ' ms';
+}
+
+/**
+ * Pluralization helper.
+ */
+
+function plural(ms, msAbs, n, name) {
+  var isPlural = msAbs >= n * 1.5;
+  return Math.round(ms / n) + ' ' + name + (isPlural ? 's' : '');
+}
+
+
+/***/ }),
+
 /***/ 4907:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
@@ -4594,6 +5588,2150 @@ module.exports = {
 
 /***/ }),
 
+/***/ 1532:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const ANY = Symbol('SemVer ANY')
+// hoisted class for cyclic dependency
+class Comparator {
+  static get ANY () {
+    return ANY
+  }
+  constructor (comp, options) {
+    if (!options || typeof options !== 'object') {
+      options = {
+        loose: !!options,
+        includePrerelease: false
+      }
+    }
+
+    if (comp instanceof Comparator) {
+      if (comp.loose === !!options.loose) {
+        return comp
+      } else {
+        comp = comp.value
+      }
+    }
+
+    debug('comparator', comp, options)
+    this.options = options
+    this.loose = !!options.loose
+    this.parse(comp)
+
+    if (this.semver === ANY) {
+      this.value = ''
+    } else {
+      this.value = this.operator + this.semver.version
+    }
+
+    debug('comp', this)
+  }
+
+  parse (comp) {
+    const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR]
+    const m = comp.match(r)
+
+    if (!m) {
+      throw new TypeError(`Invalid comparator: ${comp}`)
+    }
+
+    this.operator = m[1] !== undefined ? m[1] : ''
+    if (this.operator === '=') {
+      this.operator = ''
+    }
+
+    // if it literally is just '>' or '' then allow anything.
+    if (!m[2]) {
+      this.semver = ANY
+    } else {
+      this.semver = new SemVer(m[2], this.options.loose)
+    }
+  }
+
+  toString () {
+    return this.value
+  }
+
+  test (version) {
+    debug('Comparator.test', version, this.options.loose)
+
+    if (this.semver === ANY || version === ANY) {
+      return true
+    }
+
+    if (typeof version === 'string') {
+      try {
+        version = new SemVer(version, this.options)
+      } catch (er) {
+        return false
+      }
+    }
+
+    return cmp(version, this.operator, this.semver, this.options)
+  }
+
+  intersects (comp, options) {
+    if (!(comp instanceof Comparator)) {
+      throw new TypeError('a Comparator is required')
+    }
+
+    if (!options || typeof options !== 'object') {
+      options = {
+        loose: !!options,
+        includePrerelease: false
+      }
+    }
+
+    if (this.operator === '') {
+      if (this.value === '') {
+        return true
+      }
+      return new Range(comp.value, options).test(this.value)
+    } else if (comp.operator === '') {
+      if (comp.value === '') {
+        return true
+      }
+      return new Range(this.value, options).test(comp.semver)
+    }
+
+    const sameDirectionIncreasing =
+      (this.operator === '>=' || this.operator === '>') &&
+      (comp.operator === '>=' || comp.operator === '>')
+    const sameDirectionDecreasing =
+      (this.operator === '<=' || this.operator === '<') &&
+      (comp.operator === '<=' || comp.operator === '<')
+    const sameSemVer = this.semver.version === comp.semver.version
+    const differentDirectionsInclusive =
+      (this.operator === '>=' || this.operator === '<=') &&
+      (comp.operator === '>=' || comp.operator === '<=')
+    const oppositeDirectionsLessThan =
+      cmp(this.semver, '<', comp.semver, options) &&
+      (this.operator === '>=' || this.operator === '>') &&
+        (comp.operator === '<=' || comp.operator === '<')
+    const oppositeDirectionsGreaterThan =
+      cmp(this.semver, '>', comp.semver, options) &&
+      (this.operator === '<=' || this.operator === '<') &&
+        (comp.operator === '>=' || comp.operator === '>')
+
+    return (
+      sameDirectionIncreasing ||
+      sameDirectionDecreasing ||
+      (sameSemVer && differentDirectionsInclusive) ||
+      oppositeDirectionsLessThan ||
+      oppositeDirectionsGreaterThan
+    )
+  }
+}
+
+module.exports = Comparator
+
+const {re, t} = __webpack_require__(9523)
+const cmp = __webpack_require__(5098)
+const debug = __webpack_require__(427)
+const SemVer = __webpack_require__(8088)
+const Range = __webpack_require__(9828)
+
+
+/***/ }),
+
+/***/ 9828:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+// hoisted class for cyclic dependency
+class Range {
+  constructor (range, options) {
+    if (!options || typeof options !== 'object') {
+      options = {
+        loose: !!options,
+        includePrerelease: false
+      }
+    }
+
+    if (range instanceof Range) {
+      if (
+        range.loose === !!options.loose &&
+        range.includePrerelease === !!options.includePrerelease
+      ) {
+        return range
+      } else {
+        return new Range(range.raw, options)
+      }
+    }
+
+    if (range instanceof Comparator) {
+      // just put it in the set and return
+      this.raw = range.value
+      this.set = [[range]]
+      this.format()
+      return this
+    }
+
+    this.options = options
+    this.loose = !!options.loose
+    this.includePrerelease = !!options.includePrerelease
+
+    // First, split based on boolean or ||
+    this.raw = range
+    this.set = range
+      .split(/\s*\|\|\s*/)
+      // map the range to a 2d array of comparators
+      .map(range => this.parseRange(range.trim()))
+      // throw out any comparator lists that are empty
+      // this generally means that it was not a valid range, which is allowed
+      // in loose mode, but will still throw if the WHOLE range is invalid.
+      .filter(c => c.length)
+
+    if (!this.set.length) {
+      throw new TypeError(`Invalid SemVer Range: ${range}`)
+    }
+
+    this.format()
+  }
+
+  format () {
+    this.range = this.set
+      .map((comps) => {
+        return comps.join(' ').trim()
+      })
+      .join('||')
+      .trim()
+    return this.range
+  }
+
+  toString () {
+    return this.range
+  }
+
+  parseRange (range) {
+    const loose = this.options.loose
+    range = range.trim()
+    // `1.2.3 - 1.2.4` => `>=1.2.3 <=1.2.4`
+    const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE]
+    range = range.replace(hr, hyphenReplace(this.options.includePrerelease))
+    debug('hyphen replace', range)
+    // `> 1.2.3 < 1.2.5` => `>1.2.3 <1.2.5`
+    range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace)
+    debug('comparator trim', range, re[t.COMPARATORTRIM])
+
+    // `~ 1.2.3` => `~1.2.3`
+    range = range.replace(re[t.TILDETRIM], tildeTrimReplace)
+
+    // `^ 1.2.3` => `^1.2.3`
+    range = range.replace(re[t.CARETTRIM], caretTrimReplace)
+
+    // normalize spaces
+    range = range.split(/\s+/).join(' ')
+
+    // At this point, the range is completely trimmed and
+    // ready to be split into comparators.
+
+    const compRe = loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR]
+    return range
+      .split(' ')
+      .map(comp => parseComparator(comp, this.options))
+      .join(' ')
+      .split(/\s+/)
+      .map(comp => replaceGTE0(comp, this.options))
+      // in loose mode, throw out any that are not valid comparators
+      .filter(this.options.loose ? comp => !!comp.match(compRe) : () => true)
+      .map(comp => new Comparator(comp, this.options))
+  }
+
+  intersects (range, options) {
+    if (!(range instanceof Range)) {
+      throw new TypeError('a Range is required')
+    }
+
+    return this.set.some((thisComparators) => {
+      return (
+        isSatisfiable(thisComparators, options) &&
+        range.set.some((rangeComparators) => {
+          return (
+            isSatisfiable(rangeComparators, options) &&
+            thisComparators.every((thisComparator) => {
+              return rangeComparators.every((rangeComparator) => {
+                return thisComparator.intersects(rangeComparator, options)
+              })
+            })
+          )
+        })
+      )
+    })
+  }
+
+  // if ANY of the sets match ALL of its comparators, then pass
+  test (version) {
+    if (!version) {
+      return false
+    }
+
+    if (typeof version === 'string') {
+      try {
+        version = new SemVer(version, this.options)
+      } catch (er) {
+        return false
+      }
+    }
+
+    for (let i = 0; i < this.set.length; i++) {
+      if (testSet(this.set[i], version, this.options)) {
+        return true
+      }
+    }
+    return false
+  }
+}
+module.exports = Range
+
+const Comparator = __webpack_require__(1532)
+const debug = __webpack_require__(427)
+const SemVer = __webpack_require__(8088)
+const {
+  re,
+  t,
+  comparatorTrimReplace,
+  tildeTrimReplace,
+  caretTrimReplace
+} = __webpack_require__(9523)
+
+// take a set of comparators and determine whether there
+// exists a version which can satisfy it
+const isSatisfiable = (comparators, options) => {
+  let result = true
+  const remainingComparators = comparators.slice()
+  let testComparator = remainingComparators.pop()
+
+  while (result && remainingComparators.length) {
+    result = remainingComparators.every((otherComparator) => {
+      return testComparator.intersects(otherComparator, options)
+    })
+
+    testComparator = remainingComparators.pop()
+  }
+
+  return result
+}
+
+// comprised of xranges, tildes, stars, and gtlt's at this point.
+// already replaced the hyphen ranges
+// turn into a set of JUST comparators.
+const parseComparator = (comp, options) => {
+  debug('comp', comp, options)
+  comp = replaceCarets(comp, options)
+  debug('caret', comp)
+  comp = replaceTildes(comp, options)
+  debug('tildes', comp)
+  comp = replaceXRanges(comp, options)
+  debug('xrange', comp)
+  comp = replaceStars(comp, options)
+  debug('stars', comp)
+  return comp
+}
+
+const isX = id => !id || id.toLowerCase() === 'x' || id === '*'
+
+// ~, ~> --> * (any, kinda silly)
+// ~2, ~2.x, ~2.x.x, ~>2, ~>2.x ~>2.x.x --> >=2.0.0 <3.0.0-0
+// ~2.0, ~2.0.x, ~>2.0, ~>2.0.x --> >=2.0.0 <2.1.0-0
+// ~1.2, ~1.2.x, ~>1.2, ~>1.2.x --> >=1.2.0 <1.3.0-0
+// ~1.2.3, ~>1.2.3 --> >=1.2.3 <1.3.0-0
+// ~1.2.0, ~>1.2.0 --> >=1.2.0 <1.3.0-0
+const replaceTildes = (comp, options) =>
+  comp.trim().split(/\s+/).map((comp) => {
+    return replaceTilde(comp, options)
+  }).join(' ')
+
+const replaceTilde = (comp, options) => {
+  const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE]
+  return comp.replace(r, (_, M, m, p, pr) => {
+    debug('tilde', comp, _, M, m, p, pr)
+    let ret
+
+    if (isX(M)) {
+      ret = ''
+    } else if (isX(m)) {
+      ret = `>=${M}.0.0 <${+M + 1}.0.0-0`
+    } else if (isX(p)) {
+      // ~1.2 == >=1.2.0 <1.3.0-0
+      ret = `>=${M}.${m}.0 <${M}.${+m + 1}.0-0`
+    } else if (pr) {
+      debug('replaceTilde pr', pr)
+      ret = `>=${M}.${m}.${p}-${pr
+      } <${M}.${+m + 1}.0-0`
+    } else {
+      // ~1.2.3 == >=1.2.3 <1.3.0-0
+      ret = `>=${M}.${m}.${p
+      } <${M}.${+m + 1}.0-0`
+    }
+
+    debug('tilde return', ret)
+    return ret
+  })
+}
+
+// ^ --> * (any, kinda silly)
+// ^2, ^2.x, ^2.x.x --> >=2.0.0 <3.0.0-0
+// ^2.0, ^2.0.x --> >=2.0.0 <3.0.0-0
+// ^1.2, ^1.2.x --> >=1.2.0 <2.0.0-0
+// ^1.2.3 --> >=1.2.3 <2.0.0-0
+// ^1.2.0 --> >=1.2.0 <2.0.0-0
+const replaceCarets = (comp, options) =>
+  comp.trim().split(/\s+/).map((comp) => {
+    return replaceCaret(comp, options)
+  }).join(' ')
+
+const replaceCaret = (comp, options) => {
+  debug('caret', comp, options)
+  const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET]
+  const z = options.includePrerelease ? '-0' : ''
+  return comp.replace(r, (_, M, m, p, pr) => {
+    debug('caret', comp, _, M, m, p, pr)
+    let ret
+
+    if (isX(M)) {
+      ret = ''
+    } else if (isX(m)) {
+      ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`
+    } else if (isX(p)) {
+      if (M === '0') {
+        ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`
+      } else {
+        ret = `>=${M}.${m}.0${z} <${+M + 1}.0.0-0`
+      }
+    } else if (pr) {
+      debug('replaceCaret pr', pr)
+      if (M === '0') {
+        if (m === '0') {
+          ret = `>=${M}.${m}.${p}-${pr
+          } <${M}.${m}.${+p + 1}-0`
+        } else {
+          ret = `>=${M}.${m}.${p}-${pr
+          } <${M}.${+m + 1}.0-0`
+        }
+      } else {
+        ret = `>=${M}.${m}.${p}-${pr
+        } <${+M + 1}.0.0-0`
+      }
+    } else {
+      debug('no pr')
+      if (M === '0') {
+        if (m === '0') {
+          ret = `>=${M}.${m}.${p
+          }${z} <${M}.${m}.${+p + 1}-0`
+        } else {
+          ret = `>=${M}.${m}.${p
+          }${z} <${M}.${+m + 1}.0-0`
+        }
+      } else {
+        ret = `>=${M}.${m}.${p
+        } <${+M + 1}.0.0-0`
+      }
+    }
+
+    debug('caret return', ret)
+    return ret
+  })
+}
+
+const replaceXRanges = (comp, options) => {
+  debug('replaceXRanges', comp, options)
+  return comp.split(/\s+/).map((comp) => {
+    return replaceXRange(comp, options)
+  }).join(' ')
+}
+
+const replaceXRange = (comp, options) => {
+  comp = comp.trim()
+  const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE]
+  return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
+    debug('xRange', comp, ret, gtlt, M, m, p, pr)
+    const xM = isX(M)
+    const xm = xM || isX(m)
+    const xp = xm || isX(p)
+    const anyX = xp
+
+    if (gtlt === '=' && anyX) {
+      gtlt = ''
+    }
+
+    // if we're including prereleases in the match, then we need
+    // to fix this to -0, the lowest possible prerelease value
+    pr = options.includePrerelease ? '-0' : ''
+
+    if (xM) {
+      if (gtlt === '>' || gtlt === '<') {
+        // nothing is allowed
+        ret = '<0.0.0-0'
+      } else {
+        // nothing is forbidden
+        ret = '*'
+      }
+    } else if (gtlt && anyX) {
+      // we know patch is an x, because we have any x at all.
+      // replace X with 0
+      if (xm) {
+        m = 0
+      }
+      p = 0
+
+      if (gtlt === '>') {
+        // >1 => >=2.0.0
+        // >1.2 => >=1.3.0
+        gtlt = '>='
+        if (xm) {
+          M = +M + 1
+          m = 0
+          p = 0
+        } else {
+          m = +m + 1
+          p = 0
+        }
+      } else if (gtlt === '<=') {
+        // <=0.7.x is actually <0.8.0, since any 0.7.x should
+        // pass.  Similarly, <=7.x is actually <8.0.0, etc.
+        gtlt = '<'
+        if (xm) {
+          M = +M + 1
+        } else {
+          m = +m + 1
+        }
+      }
+
+      if (gtlt === '<')
+        pr = '-0'
+
+      ret = `${gtlt + M}.${m}.${p}${pr}`
+    } else if (xm) {
+      ret = `>=${M}.0.0${pr} <${+M + 1}.0.0-0`
+    } else if (xp) {
+      ret = `>=${M}.${m}.0${pr
+      } <${M}.${+m + 1}.0-0`
+    }
+
+    debug('xRange return', ret)
+
+    return ret
+  })
+}
+
+// Because * is AND-ed with everything else in the comparator,
+// and '' means "any version", just remove the *s entirely.
+const replaceStars = (comp, options) => {
+  debug('replaceStars', comp, options)
+  // Looseness is ignored here.  star is always as loose as it gets!
+  return comp.trim().replace(re[t.STAR], '')
+}
+
+const replaceGTE0 = (comp, options) => {
+  debug('replaceGTE0', comp, options)
+  return comp.trim()
+    .replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], '')
+}
+
+// This function is passed to string.replace(re[t.HYPHENRANGE])
+// M, m, patch, prerelease, build
+// 1.2 - 3.4.5 => >=1.2.0 <=3.4.5
+// 1.2.3 - 3.4 => >=1.2.0 <3.5.0-0 Any 3.4.x will do
+// 1.2 - 3.4 => >=1.2.0 <3.5.0-0
+const hyphenReplace = incPr => ($0,
+  from, fM, fm, fp, fpr, fb,
+  to, tM, tm, tp, tpr, tb) => {
+  if (isX(fM)) {
+    from = ''
+  } else if (isX(fm)) {
+    from = `>=${fM}.0.0${incPr ? '-0' : ''}`
+  } else if (isX(fp)) {
+    from = `>=${fM}.${fm}.0${incPr ? '-0' : ''}`
+  } else if (fpr) {
+    from = `>=${from}`
+  } else {
+    from = `>=${from}${incPr ? '-0' : ''}`
+  }
+
+  if (isX(tM)) {
+    to = ''
+  } else if (isX(tm)) {
+    to = `<${+tM + 1}.0.0-0`
+  } else if (isX(tp)) {
+    to = `<${tM}.${+tm + 1}.0-0`
+  } else if (tpr) {
+    to = `<=${tM}.${tm}.${tp}-${tpr}`
+  } else if (incPr) {
+    to = `<${tM}.${tm}.${+tp + 1}-0`
+  } else {
+    to = `<=${to}`
+  }
+
+  return (`${from} ${to}`).trim()
+}
+
+const testSet = (set, version, options) => {
+  for (let i = 0; i < set.length; i++) {
+    if (!set[i].test(version)) {
+      return false
+    }
+  }
+
+  if (version.prerelease.length && !options.includePrerelease) {
+    // Find the set of versions that are allowed to have prereleases
+    // For example, ^1.2.3-pr.1 desugars to >=1.2.3-pr.1 <2.0.0
+    // That should allow `1.2.3-pr.2` to pass.
+    // However, `1.2.4-alpha.notready` should NOT be allowed,
+    // even though it's within the range set by the comparators.
+    for (let i = 0; i < set.length; i++) {
+      debug(set[i].semver)
+      if (set[i].semver === Comparator.ANY) {
+        continue
+      }
+
+      if (set[i].semver.prerelease.length > 0) {
+        const allowed = set[i].semver
+        if (allowed.major === version.major &&
+            allowed.minor === version.minor &&
+            allowed.patch === version.patch) {
+          return true
+        }
+      }
+    }
+
+    // Version has a -pre, but it's not one of the ones we like.
+    return false
+  }
+
+  return true
+}
+
+
+/***/ }),
+
+/***/ 8088:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const debug = __webpack_require__(427)
+const { MAX_LENGTH, MAX_SAFE_INTEGER } = __webpack_require__(2293)
+const { re, t } = __webpack_require__(9523)
+
+const { compareIdentifiers } = __webpack_require__(2463)
+class SemVer {
+  constructor (version, options) {
+    if (!options || typeof options !== 'object') {
+      options = {
+        loose: !!options,
+        includePrerelease: false
+      }
+    }
+    if (version instanceof SemVer) {
+      if (version.loose === !!options.loose &&
+          version.includePrerelease === !!options.includePrerelease) {
+        return version
+      } else {
+        version = version.version
+      }
+    } else if (typeof version !== 'string') {
+      throw new TypeError(`Invalid Version: ${version}`)
+    }
+
+    if (version.length > MAX_LENGTH) {
+      throw new TypeError(
+        `version is longer than ${MAX_LENGTH} characters`
+      )
+    }
+
+    debug('SemVer', version, options)
+    this.options = options
+    this.loose = !!options.loose
+    // this isn't actually relevant for versions, but keep it so that we
+    // don't run into trouble passing this.options around.
+    this.includePrerelease = !!options.includePrerelease
+
+    const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL])
+
+    if (!m) {
+      throw new TypeError(`Invalid Version: ${version}`)
+    }
+
+    this.raw = version
+
+    // these are actually numbers
+    this.major = +m[1]
+    this.minor = +m[2]
+    this.patch = +m[3]
+
+    if (this.major > MAX_SAFE_INTEGER || this.major < 0) {
+      throw new TypeError('Invalid major version')
+    }
+
+    if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) {
+      throw new TypeError('Invalid minor version')
+    }
+
+    if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) {
+      throw new TypeError('Invalid patch version')
+    }
+
+    // numberify any prerelease numeric ids
+    if (!m[4]) {
+      this.prerelease = []
+    } else {
+      this.prerelease = m[4].split('.').map((id) => {
+        if (/^[0-9]+$/.test(id)) {
+          const num = +id
+          if (num >= 0 && num < MAX_SAFE_INTEGER) {
+            return num
+          }
+        }
+        return id
+      })
+    }
+
+    this.build = m[5] ? m[5].split('.') : []
+    this.format()
+  }
+
+  format () {
+    this.version = `${this.major}.${this.minor}.${this.patch}`
+    if (this.prerelease.length) {
+      this.version += `-${this.prerelease.join('.')}`
+    }
+    return this.version
+  }
+
+  toString () {
+    return this.version
+  }
+
+  compare (other) {
+    debug('SemVer.compare', this.version, this.options, other)
+    if (!(other instanceof SemVer)) {
+      if (typeof other === 'string' && other === this.version) {
+        return 0
+      }
+      other = new SemVer(other, this.options)
+    }
+
+    if (other.version === this.version) {
+      return 0
+    }
+
+    return this.compareMain(other) || this.comparePre(other)
+  }
+
+  compareMain (other) {
+    if (!(other instanceof SemVer)) {
+      other = new SemVer(other, this.options)
+    }
+
+    return (
+      compareIdentifiers(this.major, other.major) ||
+      compareIdentifiers(this.minor, other.minor) ||
+      compareIdentifiers(this.patch, other.patch)
+    )
+  }
+
+  comparePre (other) {
+    if (!(other instanceof SemVer)) {
+      other = new SemVer(other, this.options)
+    }
+
+    // NOT having a prerelease is > having one
+    if (this.prerelease.length && !other.prerelease.length) {
+      return -1
+    } else if (!this.prerelease.length && other.prerelease.length) {
+      return 1
+    } else if (!this.prerelease.length && !other.prerelease.length) {
+      return 0
+    }
+
+    let i = 0
+    do {
+      const a = this.prerelease[i]
+      const b = other.prerelease[i]
+      debug('prerelease compare', i, a, b)
+      if (a === undefined && b === undefined) {
+        return 0
+      } else if (b === undefined) {
+        return 1
+      } else if (a === undefined) {
+        return -1
+      } else if (a === b) {
+        continue
+      } else {
+        return compareIdentifiers(a, b)
+      }
+    } while (++i)
+  }
+
+  compareBuild (other) {
+    if (!(other instanceof SemVer)) {
+      other = new SemVer(other, this.options)
+    }
+
+    let i = 0
+    do {
+      const a = this.build[i]
+      const b = other.build[i]
+      debug('prerelease compare', i, a, b)
+      if (a === undefined && b === undefined) {
+        return 0
+      } else if (b === undefined) {
+        return 1
+      } else if (a === undefined) {
+        return -1
+      } else if (a === b) {
+        continue
+      } else {
+        return compareIdentifiers(a, b)
+      }
+    } while (++i)
+  }
+
+  // preminor will bump the version up to the next minor release, and immediately
+  // down to pre-release. premajor and prepatch work the same way.
+  inc (release, identifier) {
+    switch (release) {
+      case 'premajor':
+        this.prerelease.length = 0
+        this.patch = 0
+        this.minor = 0
+        this.major++
+        this.inc('pre', identifier)
+        break
+      case 'preminor':
+        this.prerelease.length = 0
+        this.patch = 0
+        this.minor++
+        this.inc('pre', identifier)
+        break
+      case 'prepatch':
+        // If this is already a prerelease, it will bump to the next version
+        // drop any prereleases that might already exist, since they are not
+        // relevant at this point.
+        this.prerelease.length = 0
+        this.inc('patch', identifier)
+        this.inc('pre', identifier)
+        break
+      // If the input is a non-prerelease version, this acts the same as
+      // prepatch.
+      case 'prerelease':
+        if (this.prerelease.length === 0) {
+          this.inc('patch', identifier)
+        }
+        this.inc('pre', identifier)
+        break
+
+      case 'major':
+        // If this is a pre-major version, bump up to the same major version.
+        // Otherwise increment major.
+        // 1.0.0-5 bumps to 1.0.0
+        // 1.1.0 bumps to 2.0.0
+        if (
+          this.minor !== 0 ||
+          this.patch !== 0 ||
+          this.prerelease.length === 0
+        ) {
+          this.major++
+        }
+        this.minor = 0
+        this.patch = 0
+        this.prerelease = []
+        break
+      case 'minor':
+        // If this is a pre-minor version, bump up to the same minor version.
+        // Otherwise increment minor.
+        // 1.2.0-5 bumps to 1.2.0
+        // 1.2.1 bumps to 1.3.0
+        if (this.patch !== 0 || this.prerelease.length === 0) {
+          this.minor++
+        }
+        this.patch = 0
+        this.prerelease = []
+        break
+      case 'patch':
+        // If this is not a pre-release version, it will increment the patch.
+        // If it is a pre-release it will bump up to the same patch version.
+        // 1.2.0-5 patches to 1.2.0
+        // 1.2.0 patches to 1.2.1
+        if (this.prerelease.length === 0) {
+          this.patch++
+        }
+        this.prerelease = []
+        break
+      // This probably shouldn't be used publicly.
+      // 1.0.0 'pre' would become 1.0.0-0 which is the wrong direction.
+      case 'pre':
+        if (this.prerelease.length === 0) {
+          this.prerelease = [0]
+        } else {
+          let i = this.prerelease.length
+          while (--i >= 0) {
+            if (typeof this.prerelease[i] === 'number') {
+              this.prerelease[i]++
+              i = -2
+            }
+          }
+          if (i === -1) {
+            // didn't increment anything
+            this.prerelease.push(0)
+          }
+        }
+        if (identifier) {
+          // 1.2.0-beta.1 bumps to 1.2.0-beta.2,
+          // 1.2.0-beta.fooblz or 1.2.0-beta bumps to 1.2.0-beta.0
+          if (this.prerelease[0] === identifier) {
+            if (isNaN(this.prerelease[1])) {
+              this.prerelease = [identifier, 0]
+            }
+          } else {
+            this.prerelease = [identifier, 0]
+          }
+        }
+        break
+
+      default:
+        throw new Error(`invalid increment argument: ${release}`)
+    }
+    this.format()
+    this.raw = this.version
+    return this
+  }
+}
+
+module.exports = SemVer
+
+
+/***/ }),
+
+/***/ 8848:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const parse = __webpack_require__(5925)
+const clean = (version, options) => {
+  const s = parse(version.trim().replace(/^[=v]+/, ''), options)
+  return s ? s.version : null
+}
+module.exports = clean
+
+
+/***/ }),
+
+/***/ 5098:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const eq = __webpack_require__(1898)
+const neq = __webpack_require__(6017)
+const gt = __webpack_require__(4123)
+const gte = __webpack_require__(5522)
+const lt = __webpack_require__(194)
+const lte = __webpack_require__(7520)
+
+const cmp = (a, op, b, loose) => {
+  switch (op) {
+    case '===':
+      if (typeof a === 'object')
+        a = a.version
+      if (typeof b === 'object')
+        b = b.version
+      return a === b
+
+    case '!==':
+      if (typeof a === 'object')
+        a = a.version
+      if (typeof b === 'object')
+        b = b.version
+      return a !== b
+
+    case '':
+    case '=':
+    case '==':
+      return eq(a, b, loose)
+
+    case '!=':
+      return neq(a, b, loose)
+
+    case '>':
+      return gt(a, b, loose)
+
+    case '>=':
+      return gte(a, b, loose)
+
+    case '<':
+      return lt(a, b, loose)
+
+    case '<=':
+      return lte(a, b, loose)
+
+    default:
+      throw new TypeError(`Invalid operator: ${op}`)
+  }
+}
+module.exports = cmp
+
+
+/***/ }),
+
+/***/ 3466:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const parse = __webpack_require__(5925)
+const {re, t} = __webpack_require__(9523)
+
+const coerce = (version, options) => {
+  if (version instanceof SemVer) {
+    return version
+  }
+
+  if (typeof version === 'number') {
+    version = String(version)
+  }
+
+  if (typeof version !== 'string') {
+    return null
+  }
+
+  options = options || {}
+
+  let match = null
+  if (!options.rtl) {
+    match = version.match(re[t.COERCE])
+  } else {
+    // Find the right-most coercible string that does not share
+    // a terminus with a more left-ward coercible string.
+    // Eg, '1.2.3.4' wants to coerce '2.3.4', not '3.4' or '4'
+    //
+    // Walk through the string checking with a /g regexp
+    // Manually set the index so as to pick up overlapping matches.
+    // Stop when we get a match that ends at the string end, since no
+    // coercible string can be more right-ward without the same terminus.
+    let next
+    while ((next = re[t.COERCERTL].exec(version)) &&
+        (!match || match.index + match[0].length !== version.length)
+    ) {
+      if (!match ||
+            next.index + next[0].length !== match.index + match[0].length) {
+        match = next
+      }
+      re[t.COERCERTL].lastIndex = next.index + next[1].length + next[2].length
+    }
+    // leave it in a clean state
+    re[t.COERCERTL].lastIndex = -1
+  }
+
+  if (match === null)
+    return null
+
+  return parse(`${match[2]}.${match[3] || '0'}.${match[4] || '0'}`, options)
+}
+module.exports = coerce
+
+
+/***/ }),
+
+/***/ 2156:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const compareBuild = (a, b, loose) => {
+  const versionA = new SemVer(a, loose)
+  const versionB = new SemVer(b, loose)
+  return versionA.compare(versionB) || versionA.compareBuild(versionB)
+}
+module.exports = compareBuild
+
+
+/***/ }),
+
+/***/ 2804:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compare = __webpack_require__(4309)
+const compareLoose = (a, b) => compare(a, b, true)
+module.exports = compareLoose
+
+
+/***/ }),
+
+/***/ 4309:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const compare = (a, b, loose) =>
+  new SemVer(a, loose).compare(new SemVer(b, loose))
+
+module.exports = compare
+
+
+/***/ }),
+
+/***/ 4297:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const parse = __webpack_require__(5925)
+const eq = __webpack_require__(1898)
+
+const diff = (version1, version2) => {
+  if (eq(version1, version2)) {
+    return null
+  } else {
+    const v1 = parse(version1)
+    const v2 = parse(version2)
+    const hasPre = v1.prerelease.length || v2.prerelease.length
+    const prefix = hasPre ? 'pre' : ''
+    const defaultResult = hasPre ? 'prerelease' : ''
+    for (const key in v1) {
+      if (key === 'major' || key === 'minor' || key === 'patch') {
+        if (v1[key] !== v2[key]) {
+          return prefix + key
+        }
+      }
+    }
+    return defaultResult // may be undefined
+  }
+}
+module.exports = diff
+
+
+/***/ }),
+
+/***/ 1898:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compare = __webpack_require__(4309)
+const eq = (a, b, loose) => compare(a, b, loose) === 0
+module.exports = eq
+
+
+/***/ }),
+
+/***/ 4123:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compare = __webpack_require__(4309)
+const gt = (a, b, loose) => compare(a, b, loose) > 0
+module.exports = gt
+
+
+/***/ }),
+
+/***/ 5522:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compare = __webpack_require__(4309)
+const gte = (a, b, loose) => compare(a, b, loose) >= 0
+module.exports = gte
+
+
+/***/ }),
+
+/***/ 929:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+
+const inc = (version, release, options, identifier) => {
+  if (typeof (options) === 'string') {
+    identifier = options
+    options = undefined
+  }
+
+  try {
+    return new SemVer(version, options).inc(release, identifier).version
+  } catch (er) {
+    return null
+  }
+}
+module.exports = inc
+
+
+/***/ }),
+
+/***/ 194:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compare = __webpack_require__(4309)
+const lt = (a, b, loose) => compare(a, b, loose) < 0
+module.exports = lt
+
+
+/***/ }),
+
+/***/ 7520:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compare = __webpack_require__(4309)
+const lte = (a, b, loose) => compare(a, b, loose) <= 0
+module.exports = lte
+
+
+/***/ }),
+
+/***/ 6688:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const major = (a, loose) => new SemVer(a, loose).major
+module.exports = major
+
+
+/***/ }),
+
+/***/ 8447:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const minor = (a, loose) => new SemVer(a, loose).minor
+module.exports = minor
+
+
+/***/ }),
+
+/***/ 6017:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compare = __webpack_require__(4309)
+const neq = (a, b, loose) => compare(a, b, loose) !== 0
+module.exports = neq
+
+
+/***/ }),
+
+/***/ 5925:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const {MAX_LENGTH} = __webpack_require__(2293)
+const { re, t } = __webpack_require__(9523)
+const SemVer = __webpack_require__(8088)
+
+const parse = (version, options) => {
+  if (!options || typeof options !== 'object') {
+    options = {
+      loose: !!options,
+      includePrerelease: false
+    }
+  }
+
+  if (version instanceof SemVer) {
+    return version
+  }
+
+  if (typeof version !== 'string') {
+    return null
+  }
+
+  if (version.length > MAX_LENGTH) {
+    return null
+  }
+
+  const r = options.loose ? re[t.LOOSE] : re[t.FULL]
+  if (!r.test(version)) {
+    return null
+  }
+
+  try {
+    return new SemVer(version, options)
+  } catch (er) {
+    return null
+  }
+}
+
+module.exports = parse
+
+
+/***/ }),
+
+/***/ 2866:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const patch = (a, loose) => new SemVer(a, loose).patch
+module.exports = patch
+
+
+/***/ }),
+
+/***/ 4016:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const parse = __webpack_require__(5925)
+const prerelease = (version, options) => {
+  const parsed = parse(version, options)
+  return (parsed && parsed.prerelease.length) ? parsed.prerelease : null
+}
+module.exports = prerelease
+
+
+/***/ }),
+
+/***/ 7499:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compare = __webpack_require__(4309)
+const rcompare = (a, b, loose) => compare(b, a, loose)
+module.exports = rcompare
+
+
+/***/ }),
+
+/***/ 8701:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compareBuild = __webpack_require__(2156)
+const rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose))
+module.exports = rsort
+
+
+/***/ }),
+
+/***/ 6055:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const Range = __webpack_require__(9828)
+const satisfies = (version, range, options) => {
+  try {
+    range = new Range(range, options)
+  } catch (er) {
+    return false
+  }
+  return range.test(version)
+}
+module.exports = satisfies
+
+
+/***/ }),
+
+/***/ 1426:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const compareBuild = __webpack_require__(2156)
+const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose))
+module.exports = sort
+
+
+/***/ }),
+
+/***/ 9601:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const parse = __webpack_require__(5925)
+const valid = (version, options) => {
+  const v = parse(version, options)
+  return v ? v.version : null
+}
+module.exports = valid
+
+
+/***/ }),
+
+/***/ 1383:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+// just pre-load all the stuff that index.js lazily exports
+const internalRe = __webpack_require__(9523)
+module.exports = {
+  re: internalRe.re,
+  src: internalRe.src,
+  tokens: internalRe.t,
+  SEMVER_SPEC_VERSION: __webpack_require__(2293).SEMVER_SPEC_VERSION,
+  SemVer: __webpack_require__(8088),
+  compareIdentifiers: __webpack_require__(2463).compareIdentifiers,
+  rcompareIdentifiers: __webpack_require__(2463).rcompareIdentifiers,
+  parse: __webpack_require__(5925),
+  valid: __webpack_require__(9601),
+  clean: __webpack_require__(8848),
+  inc: __webpack_require__(929),
+  diff: __webpack_require__(4297),
+  major: __webpack_require__(6688),
+  minor: __webpack_require__(8447),
+  patch: __webpack_require__(2866),
+  prerelease: __webpack_require__(4016),
+  compare: __webpack_require__(4309),
+  rcompare: __webpack_require__(7499),
+  compareLoose: __webpack_require__(2804),
+  compareBuild: __webpack_require__(2156),
+  sort: __webpack_require__(1426),
+  rsort: __webpack_require__(8701),
+  gt: __webpack_require__(4123),
+  lt: __webpack_require__(194),
+  eq: __webpack_require__(1898),
+  neq: __webpack_require__(6017),
+  gte: __webpack_require__(5522),
+  lte: __webpack_require__(7520),
+  cmp: __webpack_require__(5098),
+  coerce: __webpack_require__(3466),
+  Comparator: __webpack_require__(1532),
+  Range: __webpack_require__(9828),
+  satisfies: __webpack_require__(6055),
+  toComparators: __webpack_require__(2706),
+  maxSatisfying: __webpack_require__(579),
+  minSatisfying: __webpack_require__(832),
+  minVersion: __webpack_require__(4179),
+  validRange: __webpack_require__(2098),
+  outside: __webpack_require__(420),
+  gtr: __webpack_require__(9380),
+  ltr: __webpack_require__(3323),
+  intersects: __webpack_require__(7008),
+  simplifyRange: __webpack_require__(5297),
+  subset: __webpack_require__(7863),
+}
+
+
+/***/ }),
+
+/***/ 2293:
+/***/ ((module) => {
+
+// Note: this is the semver.org version of the spec that it implements
+// Not necessarily the package version of this code.
+const SEMVER_SPEC_VERSION = '2.0.0'
+
+const MAX_LENGTH = 256
+const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER ||
+  /* istanbul ignore next */ 9007199254740991
+
+// Max safe segment length for coercion.
+const MAX_SAFE_COMPONENT_LENGTH = 16
+
+module.exports = {
+  SEMVER_SPEC_VERSION,
+  MAX_LENGTH,
+  MAX_SAFE_INTEGER,
+  MAX_SAFE_COMPONENT_LENGTH
+}
+
+
+/***/ }),
+
+/***/ 427:
+/***/ ((module) => {
+
+const debug = (
+  typeof process === 'object' &&
+  process.env &&
+  process.env.NODE_DEBUG &&
+  /\bsemver\b/i.test(process.env.NODE_DEBUG)
+) ? (...args) => console.error('SEMVER', ...args)
+  : () => {}
+
+module.exports = debug
+
+
+/***/ }),
+
+/***/ 2463:
+/***/ ((module) => {
+
+const numeric = /^[0-9]+$/
+const compareIdentifiers = (a, b) => {
+  const anum = numeric.test(a)
+  const bnum = numeric.test(b)
+
+  if (anum && bnum) {
+    a = +a
+    b = +b
+  }
+
+  return a === b ? 0
+    : (anum && !bnum) ? -1
+    : (bnum && !anum) ? 1
+    : a < b ? -1
+    : 1
+}
+
+const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a)
+
+module.exports = {
+  compareIdentifiers,
+  rcompareIdentifiers
+}
+
+
+/***/ }),
+
+/***/ 9523:
+/***/ ((module, exports, __webpack_require__) => {
+
+const { MAX_SAFE_COMPONENT_LENGTH } = __webpack_require__(2293)
+const debug = __webpack_require__(427)
+exports = module.exports = {}
+
+// The actual regexps go on exports.re
+const re = exports.re = []
+const src = exports.src = []
+const t = exports.t = {}
+let R = 0
+
+const createToken = (name, value, isGlobal) => {
+  const index = R++
+  debug(index, value)
+  t[name] = index
+  src[index] = value
+  re[index] = new RegExp(value, isGlobal ? 'g' : undefined)
+}
+
+// The following Regular Expressions can be used for tokenizing,
+// validating, and parsing SemVer version strings.
+
+// ## Numeric Identifier
+// A single `0`, or a non-zero digit followed by zero or more digits.
+
+createToken('NUMERICIDENTIFIER', '0|[1-9]\\d*')
+createToken('NUMERICIDENTIFIERLOOSE', '[0-9]+')
+
+// ## Non-numeric Identifier
+// Zero or more digits, followed by a letter or hyphen, and then zero or
+// more letters, digits, or hyphens.
+
+createToken('NONNUMERICIDENTIFIER', '\\d*[a-zA-Z-][a-zA-Z0-9-]*')
+
+// ## Main Version
+// Three dot-separated numeric identifiers.
+
+createToken('MAINVERSION', `(${src[t.NUMERICIDENTIFIER]})\\.` +
+                   `(${src[t.NUMERICIDENTIFIER]})\\.` +
+                   `(${src[t.NUMERICIDENTIFIER]})`)
+
+createToken('MAINVERSIONLOOSE', `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
+                        `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
+                        `(${src[t.NUMERICIDENTIFIERLOOSE]})`)
+
+// ## Pre-release Version Identifier
+// A numeric identifier, or a non-numeric identifier.
+
+createToken('PRERELEASEIDENTIFIER', `(?:${src[t.NUMERICIDENTIFIER]
+}|${src[t.NONNUMERICIDENTIFIER]})`)
+
+createToken('PRERELEASEIDENTIFIERLOOSE', `(?:${src[t.NUMERICIDENTIFIERLOOSE]
+}|${src[t.NONNUMERICIDENTIFIER]})`)
+
+// ## Pre-release Version
+// Hyphen, followed by one or more dot-separated pre-release version
+// identifiers.
+
+createToken('PRERELEASE', `(?:-(${src[t.PRERELEASEIDENTIFIER]
+}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`)
+
+createToken('PRERELEASELOOSE', `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]
+}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`)
+
+// ## Build Metadata Identifier
+// Any combination of digits, letters, or hyphens.
+
+createToken('BUILDIDENTIFIER', '[0-9A-Za-z-]+')
+
+// ## Build Metadata
+// Plus sign, followed by one or more period-separated build metadata
+// identifiers.
+
+createToken('BUILD', `(?:\\+(${src[t.BUILDIDENTIFIER]
+}(?:\\.${src[t.BUILDIDENTIFIER]})*))`)
+
+// ## Full Version String
+// A main version, followed optionally by a pre-release version and
+// build metadata.
+
+// Note that the only major, minor, patch, and pre-release sections of
+// the version string are capturing groups.  The build metadata is not a
+// capturing group, because it should not ever be used in version
+// comparison.
+
+createToken('FULLPLAIN', `v?${src[t.MAINVERSION]
+}${src[t.PRERELEASE]}?${
+  src[t.BUILD]}?`)
+
+createToken('FULL', `^${src[t.FULLPLAIN]}$`)
+
+// like full, but allows v1.2.3 and =1.2.3, which people do sometimes.
+// also, 1.0.0alpha1 (prerelease without the hyphen) which is pretty
+// common in the npm registry.
+createToken('LOOSEPLAIN', `[v=\\s]*${src[t.MAINVERSIONLOOSE]
+}${src[t.PRERELEASELOOSE]}?${
+  src[t.BUILD]}?`)
+
+createToken('LOOSE', `^${src[t.LOOSEPLAIN]}$`)
+
+createToken('GTLT', '((?:<|>)?=?)')
+
+// Something like "2.*" or "1.2.x".
+// Note that "x.x" is a valid xRange identifer, meaning "any version"
+// Only the first item is strictly required.
+createToken('XRANGEIDENTIFIERLOOSE', `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`)
+createToken('XRANGEIDENTIFIER', `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`)
+
+createToken('XRANGEPLAIN', `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})` +
+                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
+                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
+                   `(?:${src[t.PRERELEASE]})?${
+                     src[t.BUILD]}?` +
+                   `)?)?`)
+
+createToken('XRANGEPLAINLOOSE', `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+                        `(?:${src[t.PRERELEASELOOSE]})?${
+                          src[t.BUILD]}?` +
+                        `)?)?`)
+
+createToken('XRANGE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`)
+createToken('XRANGELOOSE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`)
+
+// Coercion.
+// Extract anything that could conceivably be a part of a valid semver
+createToken('COERCE', `${'(^|[^\\d])' +
+              '(\\d{1,'}${MAX_SAFE_COMPONENT_LENGTH}})` +
+              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
+              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
+              `(?:$|[^\\d])`)
+createToken('COERCERTL', src[t.COERCE], true)
+
+// Tilde ranges.
+// Meaning is "reasonably at or greater than"
+createToken('LONETILDE', '(?:~>?)')
+
+createToken('TILDETRIM', `(\\s*)${src[t.LONETILDE]}\\s+`, true)
+exports.tildeTrimReplace = '$1~'
+
+createToken('TILDE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`)
+createToken('TILDELOOSE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`)
+
+// Caret ranges.
+// Meaning is "at least and backwards compatible with"
+createToken('LONECARET', '(?:\\^)')
+
+createToken('CARETTRIM', `(\\s*)${src[t.LONECARET]}\\s+`, true)
+exports.caretTrimReplace = '$1^'
+
+createToken('CARET', `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`)
+createToken('CARETLOOSE', `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`)
+
+// A simple gt/lt/eq thing, or just "" to indicate "any version"
+createToken('COMPARATORLOOSE', `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`)
+createToken('COMPARATOR', `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`)
+
+// An expression to strip any whitespace between the gtlt and the thing
+// it modifies, so that `> 1.2.3` ==> `>1.2.3`
+createToken('COMPARATORTRIM', `(\\s*)${src[t.GTLT]
+}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true)
+exports.comparatorTrimReplace = '$1$2$3'
+
+// Something like `1.2.3 - 1.2.4`
+// Note that these all use the loose form, because they'll be
+// checked against either the strict or loose comparator form
+// later.
+createToken('HYPHENRANGE', `^\\s*(${src[t.XRANGEPLAIN]})` +
+                   `\\s+-\\s+` +
+                   `(${src[t.XRANGEPLAIN]})` +
+                   `\\s*$`)
+
+createToken('HYPHENRANGELOOSE', `^\\s*(${src[t.XRANGEPLAINLOOSE]})` +
+                        `\\s+-\\s+` +
+                        `(${src[t.XRANGEPLAINLOOSE]})` +
+                        `\\s*$`)
+
+// Star ranges basically just allow anything at all.
+createToken('STAR', '(<|>)?=?\\s*\\*')
+// >=0.0.0 is like a star
+createToken('GTE0', '^\\s*>=\\s*0\.0\.0\\s*$')
+createToken('GTE0PRE', '^\\s*>=\\s*0\.0\.0-0\\s*$')
+
+
+/***/ }),
+
+/***/ 9380:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+// Determine if version is greater than all the versions possible in the range.
+const outside = __webpack_require__(420)
+const gtr = (version, range, options) => outside(version, range, '>', options)
+module.exports = gtr
+
+
+/***/ }),
+
+/***/ 7008:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const Range = __webpack_require__(9828)
+const intersects = (r1, r2, options) => {
+  r1 = new Range(r1, options)
+  r2 = new Range(r2, options)
+  return r1.intersects(r2)
+}
+module.exports = intersects
+
+
+/***/ }),
+
+/***/ 3323:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const outside = __webpack_require__(420)
+// Determine if version is less than all the versions possible in the range
+const ltr = (version, range, options) => outside(version, range, '<', options)
+module.exports = ltr
+
+
+/***/ }),
+
+/***/ 579:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const Range = __webpack_require__(9828)
+
+const maxSatisfying = (versions, range, options) => {
+  let max = null
+  let maxSV = null
+  let rangeObj = null
+  try {
+    rangeObj = new Range(range, options)
+  } catch (er) {
+    return null
+  }
+  versions.forEach((v) => {
+    if (rangeObj.test(v)) {
+      // satisfies(v, range, options)
+      if (!max || maxSV.compare(v) === -1) {
+        // compare(max, v, true)
+        max = v
+        maxSV = new SemVer(max, options)
+      }
+    }
+  })
+  return max
+}
+module.exports = maxSatisfying
+
+
+/***/ }),
+
+/***/ 832:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const Range = __webpack_require__(9828)
+const minSatisfying = (versions, range, options) => {
+  let min = null
+  let minSV = null
+  let rangeObj = null
+  try {
+    rangeObj = new Range(range, options)
+  } catch (er) {
+    return null
+  }
+  versions.forEach((v) => {
+    if (rangeObj.test(v)) {
+      // satisfies(v, range, options)
+      if (!min || minSV.compare(v) === 1) {
+        // compare(min, v, true)
+        min = v
+        minSV = new SemVer(min, options)
+      }
+    }
+  })
+  return min
+}
+module.exports = minSatisfying
+
+
+/***/ }),
+
+/***/ 4179:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const Range = __webpack_require__(9828)
+const gt = __webpack_require__(4123)
+
+const minVersion = (range, loose) => {
+  range = new Range(range, loose)
+
+  let minver = new SemVer('0.0.0')
+  if (range.test(minver)) {
+    return minver
+  }
+
+  minver = new SemVer('0.0.0-0')
+  if (range.test(minver)) {
+    return minver
+  }
+
+  minver = null
+  for (let i = 0; i < range.set.length; ++i) {
+    const comparators = range.set[i]
+
+    comparators.forEach((comparator) => {
+      // Clone to avoid manipulating the comparator's semver object.
+      const compver = new SemVer(comparator.semver.version)
+      switch (comparator.operator) {
+        case '>':
+          if (compver.prerelease.length === 0) {
+            compver.patch++
+          } else {
+            compver.prerelease.push(0)
+          }
+          compver.raw = compver.format()
+          /* fallthrough */
+        case '':
+        case '>=':
+          if (!minver || gt(minver, compver)) {
+            minver = compver
+          }
+          break
+        case '<':
+        case '<=':
+          /* Ignore maximum versions */
+          break
+        /* istanbul ignore next */
+        default:
+          throw new Error(`Unexpected operation: ${comparator.operator}`)
+      }
+    })
+  }
+
+  if (minver && range.test(minver)) {
+    return minver
+  }
+
+  return null
+}
+module.exports = minVersion
+
+
+/***/ }),
+
+/***/ 420:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const SemVer = __webpack_require__(8088)
+const Comparator = __webpack_require__(1532)
+const {ANY} = Comparator
+const Range = __webpack_require__(9828)
+const satisfies = __webpack_require__(6055)
+const gt = __webpack_require__(4123)
+const lt = __webpack_require__(194)
+const lte = __webpack_require__(7520)
+const gte = __webpack_require__(5522)
+
+const outside = (version, range, hilo, options) => {
+  version = new SemVer(version, options)
+  range = new Range(range, options)
+
+  let gtfn, ltefn, ltfn, comp, ecomp
+  switch (hilo) {
+    case '>':
+      gtfn = gt
+      ltefn = lte
+      ltfn = lt
+      comp = '>'
+      ecomp = '>='
+      break
+    case '<':
+      gtfn = lt
+      ltefn = gte
+      ltfn = gt
+      comp = '<'
+      ecomp = '<='
+      break
+    default:
+      throw new TypeError('Must provide a hilo val of "<" or ">"')
+  }
+
+  // If it satisifes the range it is not outside
+  if (satisfies(version, range, options)) {
+    return false
+  }
+
+  // From now on, variable terms are as if we're in "gtr" mode.
+  // but note that everything is flipped for the "ltr" function.
+
+  for (let i = 0; i < range.set.length; ++i) {
+    const comparators = range.set[i]
+
+    let high = null
+    let low = null
+
+    comparators.forEach((comparator) => {
+      if (comparator.semver === ANY) {
+        comparator = new Comparator('>=0.0.0')
+      }
+      high = high || comparator
+      low = low || comparator
+      if (gtfn(comparator.semver, high.semver, options)) {
+        high = comparator
+      } else if (ltfn(comparator.semver, low.semver, options)) {
+        low = comparator
+      }
+    })
+
+    // If the edge version comparator has a operator then our version
+    // isn't outside it
+    if (high.operator === comp || high.operator === ecomp) {
+      return false
+    }
+
+    // If the lowest version comparator has an operator and our version
+    // is less than it then it isn't higher than the range
+    if ((!low.operator || low.operator === comp) &&
+        ltefn(version, low.semver)) {
+      return false
+    } else if (low.operator === ecomp && ltfn(version, low.semver)) {
+      return false
+    }
+  }
+  return true
+}
+
+module.exports = outside
+
+
+/***/ }),
+
+/***/ 5297:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+// given a set of versions and a range, create a "simplified" range
+// that includes the same versions that the original range does
+// If the original range is shorter than the simplified one, return that.
+const satisfies = __webpack_require__(6055)
+const compare = __webpack_require__(4309)
+module.exports = (versions, range, options) => {
+  const set = []
+  let min = null
+  let prev = null
+  const v = versions.sort((a, b) => compare(a, b, options))
+  for (const version of v) {
+    const included = satisfies(version, range, options)
+    if (included) {
+      prev = version
+      if (!min)
+        min = version
+    } else {
+      if (prev) {
+        set.push([min, prev])
+      }
+      prev = null
+      min = null
+    }
+  }
+  if (min)
+    set.push([min, null])
+
+  const ranges = []
+  for (const [min, max] of set) {
+    if (min === max)
+      ranges.push(min)
+    else if (!max && min === v[0])
+      ranges.push('*')
+    else if (!max)
+      ranges.push(`>=${min}`)
+    else if (min === v[0])
+      ranges.push(`<=${max}`)
+    else
+      ranges.push(`${min} - ${max}`)
+  }
+  const simplified = ranges.join(' || ')
+  const original = typeof range.raw === 'string' ? range.raw : String(range)
+  return simplified.length < original.length ? simplified : range
+}
+
+
+/***/ }),
+
+/***/ 7863:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const Range = __webpack_require__(9828)
+const { ANY } = __webpack_require__(1532)
+const satisfies = __webpack_require__(6055)
+const compare = __webpack_require__(4309)
+
+// Complex range `r1 || r2 || ...` is a subset of `R1 || R2 || ...` iff:
+// - Every simple range `r1, r2, ...` is a subset of some `R1, R2, ...`
+//
+// Simple range `c1 c2 ...` is a subset of simple range `C1 C2 ...` iff:
+// - If c is only the ANY comparator
+//   - If C is only the ANY comparator, return true
+//   - Else return false
+// - Let EQ be the set of = comparators in c
+// - If EQ is more than one, return true (null set)
+// - Let GT be the highest > or >= comparator in c
+// - Let LT be the lowest < or <= comparator in c
+// - If GT and LT, and GT.semver > LT.semver, return true (null set)
+// - If EQ
+//   - If GT, and EQ does not satisfy GT, return true (null set)
+//   - If LT, and EQ does not satisfy LT, return true (null set)
+//   - If EQ satisfies every C, return true
+//   - Else return false
+// - If GT
+//   - If GT is lower than any > or >= comp in C, return false
+//   - If GT is >=, and GT.semver does not satisfy every C, return false
+// - If LT
+//   - If LT.semver is greater than that of any > comp in C, return false
+//   - If LT is <=, and LT.semver does not satisfy every C, return false
+// - If any C is a = range, and GT or LT are set, return false
+// - Else return true
+
+const subset = (sub, dom, options) => {
+  sub = new Range(sub, options)
+  dom = new Range(dom, options)
+  let sawNonNull = false
+
+  OUTER: for (const simpleSub of sub.set) {
+    for (const simpleDom of dom.set) {
+      const isSub = simpleSubset(simpleSub, simpleDom, options)
+      sawNonNull = sawNonNull || isSub !== null
+      if (isSub)
+        continue OUTER
+    }
+    // the null set is a subset of everything, but null simple ranges in
+    // a complex range should be ignored.  so if we saw a non-null range,
+    // then we know this isn't a subset, but if EVERY simple range was null,
+    // then it is a subset.
+    if (sawNonNull)
+      return false
+  }
+  return true
+}
+
+const simpleSubset = (sub, dom, options) => {
+  if (sub.length === 1 && sub[0].semver === ANY)
+    return dom.length === 1 && dom[0].semver === ANY
+
+  const eqSet = new Set()
+  let gt, lt
+  for (const c of sub) {
+    if (c.operator === '>' || c.operator === '>=')
+      gt = higherGT(gt, c, options)
+    else if (c.operator === '<' || c.operator === '<=')
+      lt = lowerLT(lt, c, options)
+    else
+      eqSet.add(c.semver)
+  }
+
+  if (eqSet.size > 1)
+    return null
+
+  let gtltComp
+  if (gt && lt) {
+    gtltComp = compare(gt.semver, lt.semver, options)
+    if (gtltComp > 0)
+      return null
+    else if (gtltComp === 0 && (gt.operator !== '>=' || lt.operator !== '<='))
+      return null
+  }
+
+  // will iterate one or zero times
+  for (const eq of eqSet) {
+    if (gt && !satisfies(eq, String(gt), options))
+      return null
+
+    if (lt && !satisfies(eq, String(lt), options))
+      return null
+
+    for (const c of dom) {
+      if (!satisfies(eq, String(c), options))
+        return false
+    }
+    return true
+  }
+
+  let higher, lower
+  let hasDomLT, hasDomGT
+  for (const c of dom) {
+    hasDomGT = hasDomGT || c.operator === '>' || c.operator === '>='
+    hasDomLT = hasDomLT || c.operator === '<' || c.operator === '<='
+    if (gt) {
+      if (c.operator === '>' || c.operator === '>=') {
+        higher = higherGT(gt, c, options)
+        if (higher === c)
+          return false
+      } else if (gt.operator === '>=' && !satisfies(gt.semver, String(c), options))
+        return false
+    }
+    if (lt) {
+      if (c.operator === '<' || c.operator === '<=') {
+        lower = lowerLT(lt, c, options)
+        if (lower === c)
+          return false
+      } else if (lt.operator === '<=' && !satisfies(lt.semver, String(c), options))
+        return false
+    }
+    if (!c.operator && (lt || gt) && gtltComp !== 0)
+      return false
+  }
+
+  // if there was a < or >, and nothing in the dom, then must be false
+  // UNLESS it was limited by another range in the other direction.
+  // Eg, >1.0.0 <1.0.1 is still a subset of <2.0.0
+  if (gt && hasDomLT && !lt && gtltComp !== 0)
+    return false
+
+  if (lt && hasDomGT && !gt && gtltComp !== 0)
+    return false
+
+  return true
+}
+
+// >=1.2.3 is lower than >1.2.3
+const higherGT = (a, b, options) => {
+  if (!a)
+    return b
+  const comp = compare(a.semver, b.semver, options)
+  return comp > 0 ? a
+    : comp < 0 ? b
+    : b.operator === '>' && a.operator === '>=' ? b
+    : a
+}
+
+// <=1.2.3 is higher than <1.2.3
+const lowerLT = (a, b, options) => {
+  if (!a)
+    return b
+  const comp = compare(a.semver, b.semver, options)
+  return comp < 0 ? a
+    : comp > 0 ? b
+    : b.operator === '<' && a.operator === '<=' ? b
+    : a
+}
+
+module.exports = subset
+
+
+/***/ }),
+
+/***/ 2706:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const Range = __webpack_require__(9828)
+
+// Mostly just for testing and legacy API reasons
+const toComparators = (range, options) =>
+  new Range(range, options).set
+    .map(comp => comp.map(c => c.value).join(' ').trim().split(' '))
+
+module.exports = toComparators
+
+
+/***/ }),
+
+/***/ 2098:
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+const Range = __webpack_require__(9828)
+const validRange = (range, options) => {
+  try {
+    // Return '*' instead of '' so that truthiness works.
+    // This will throw if it's invalid anyway
+    return new Range(range, options).range || '*'
+  } catch (er) {
+    return null
+  }
+}
+module.exports = validRange
+
+
+/***/ }),
+
 /***/ 1744:
 /***/ ((module) => {
 
@@ -4805,13 +7943,13 @@ var util = __webpack_require__(1669);
 
 var net = __webpack_require__(1631);
 
-var tls = __webpack_require__(4016); // eslint-disable-next-line node/no-deprecated-api
+var tls = __webpack_require__(8818); // eslint-disable-next-line node/no-deprecated-api
 
 
 var _require = __webpack_require__(8835),
     parse = _require.parse;
 
-var semver = __webpack_require__(1449);
+var semver = __webpack_require__(1383);
 
 var http2; // eslint-disable-next-line node/no-unsupported-features/node-builtins
 
@@ -5052,11 +8190,11 @@ var FormData = __webpack_require__(4334);
 
 var formidable = __webpack_require__(5265);
 
-var debug = __webpack_require__(2911)('superagent');
+var debug = __webpack_require__(8237)('superagent');
 
 var CookieJar = __webpack_require__(5507);
 
-var semver = __webpack_require__(1449);
+var semver = __webpack_require__(1383);
 
 var safeStringify = __webpack_require__(7676);
 
@@ -7770,3144 +10908,6 @@ exports.cleanHeader = function (header, changesOrigin) {
 
 /***/ }),
 
-/***/ 6289:
-/***/ ((module, exports, __webpack_require__) => {
-
-/* eslint-env browser */
-
-/**
- * This is the web browser implementation of `debug()`.
- */
-
-exports.log = log;
-exports.formatArgs = formatArgs;
-exports.save = save;
-exports.load = load;
-exports.useColors = useColors;
-exports.storage = localstorage();
-
-/**
- * Colors.
- */
-
-exports.colors = [
-	'#0000CC',
-	'#0000FF',
-	'#0033CC',
-	'#0033FF',
-	'#0066CC',
-	'#0066FF',
-	'#0099CC',
-	'#0099FF',
-	'#00CC00',
-	'#00CC33',
-	'#00CC66',
-	'#00CC99',
-	'#00CCCC',
-	'#00CCFF',
-	'#3300CC',
-	'#3300FF',
-	'#3333CC',
-	'#3333FF',
-	'#3366CC',
-	'#3366FF',
-	'#3399CC',
-	'#3399FF',
-	'#33CC00',
-	'#33CC33',
-	'#33CC66',
-	'#33CC99',
-	'#33CCCC',
-	'#33CCFF',
-	'#6600CC',
-	'#6600FF',
-	'#6633CC',
-	'#6633FF',
-	'#66CC00',
-	'#66CC33',
-	'#9900CC',
-	'#9900FF',
-	'#9933CC',
-	'#9933FF',
-	'#99CC00',
-	'#99CC33',
-	'#CC0000',
-	'#CC0033',
-	'#CC0066',
-	'#CC0099',
-	'#CC00CC',
-	'#CC00FF',
-	'#CC3300',
-	'#CC3333',
-	'#CC3366',
-	'#CC3399',
-	'#CC33CC',
-	'#CC33FF',
-	'#CC6600',
-	'#CC6633',
-	'#CC9900',
-	'#CC9933',
-	'#CCCC00',
-	'#CCCC33',
-	'#FF0000',
-	'#FF0033',
-	'#FF0066',
-	'#FF0099',
-	'#FF00CC',
-	'#FF00FF',
-	'#FF3300',
-	'#FF3333',
-	'#FF3366',
-	'#FF3399',
-	'#FF33CC',
-	'#FF33FF',
-	'#FF6600',
-	'#FF6633',
-	'#FF9900',
-	'#FF9933',
-	'#FFCC00',
-	'#FFCC33'
-];
-
-/**
- * Currently only WebKit-based Web Inspectors, Firefox >= v31,
- * and the Firebug extension (any Firefox version) are known
- * to support "%c" CSS customizations.
- *
- * TODO: add a `localStorage` variable to explicitly enable/disable colors
- */
-
-// eslint-disable-next-line complexity
-function useColors() {
-	// NB: In an Electron preload script, document will be defined but not fully
-	// initialized. Since we know we're in Chrome, we'll just detect this case
-	// explicitly
-	if (typeof window !== 'undefined' && window.process && (window.process.type === 'renderer' || window.process.__nwjs)) {
-		return true;
-	}
-
-	// Internet Explorer and Edge do not support colors.
-	if (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
-		return false;
-	}
-
-	// Is webkit? http://stackoverflow.com/a/16459606/376773
-	// document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
-	return (typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance) ||
-		// Is firebug? http://stackoverflow.com/a/398120/376773
-		(typeof window !== 'undefined' && window.console && (window.console.firebug || (window.console.exception && window.console.table))) ||
-		// Is firefox >= v31?
-		// https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
-		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/) && parseInt(RegExp.$1, 10) >= 31) ||
-		// Double check webkit in userAgent just in case we are in a worker
-		(typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/));
-}
-
-/**
- * Colorize log arguments if enabled.
- *
- * @api public
- */
-
-function formatArgs(args) {
-	args[0] = (this.useColors ? '%c' : '') +
-		this.namespace +
-		(this.useColors ? ' %c' : ' ') +
-		args[0] +
-		(this.useColors ? '%c ' : ' ') +
-		'+' + module.exports.humanize(this.diff);
-
-	if (!this.useColors) {
-		return;
-	}
-
-	const c = 'color: ' + this.color;
-	args.splice(1, 0, c, 'color: inherit');
-
-	// The final "%c" is somewhat tricky, because there could be other
-	// arguments passed either before or after the %c, so we need to
-	// figure out the correct index to insert the CSS into
-	let index = 0;
-	let lastC = 0;
-	args[0].replace(/%[a-zA-Z%]/g, match => {
-		if (match === '%%') {
-			return;
-		}
-		index++;
-		if (match === '%c') {
-			// We only are interested in the *last* %c
-			// (the user may have provided their own)
-			lastC = index;
-		}
-	});
-
-	args.splice(lastC, 0, c);
-}
-
-/**
- * Invokes `console.log()` when available.
- * No-op when `console.log` is not a "function".
- *
- * @api public
- */
-function log(...args) {
-	// This hackery is required for IE8/9, where
-	// the `console.log` function doesn't have 'apply'
-	return typeof console === 'object' &&
-		console.log &&
-		console.log(...args);
-}
-
-/**
- * Save `namespaces`.
- *
- * @param {String} namespaces
- * @api private
- */
-function save(namespaces) {
-	try {
-		if (namespaces) {
-			exports.storage.setItem('debug', namespaces);
-		} else {
-			exports.storage.removeItem('debug');
-		}
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-}
-
-/**
- * Load `namespaces`.
- *
- * @return {String} returns the previously persisted debug modes
- * @api private
- */
-function load() {
-	let r;
-	try {
-		r = exports.storage.getItem('debug');
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-
-	// If debug isn't set in LS, and we're in Electron, try to load $DEBUG
-	if (!r && typeof process !== 'undefined' && 'env' in process) {
-		r = process.env.DEBUG;
-	}
-
-	return r;
-}
-
-/**
- * Localstorage attempts to return the localstorage.
- *
- * This is necessary because safari throws
- * when a user disables cookies/localstorage
- * and you attempt to access it.
- *
- * @return {LocalStorage}
- * @api private
- */
-
-function localstorage() {
-	try {
-		// TVMLKit (Apple TV JS Runtime) does not have a window object, just localStorage in the global context
-		// The Browser also has localStorage in the global context.
-		return localStorage;
-	} catch (error) {
-		// Swallow
-		// XXX (@Qix-) should we be logging these?
-	}
-}
-
-module.exports = __webpack_require__(1812)(exports);
-
-const {formatters} = module.exports;
-
-/**
- * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
- */
-
-formatters.j = function (v) {
-	try {
-		return JSON.stringify(v);
-	} catch (error) {
-		return '[UnexpectedJSONParseError]: ' + error.message;
-	}
-};
-
-
-/***/ }),
-
-/***/ 1812:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-
-/**
- * This is the common logic for both the Node.js and web browser
- * implementations of `debug()`.
- */
-
-function setup(env) {
-	createDebug.debug = createDebug;
-	createDebug.default = createDebug;
-	createDebug.coerce = coerce;
-	createDebug.disable = disable;
-	createDebug.enable = enable;
-	createDebug.enabled = enabled;
-	createDebug.humanize = __webpack_require__(1377);
-
-	Object.keys(env).forEach(key => {
-		createDebug[key] = env[key];
-	});
-
-	/**
-	* Active `debug` instances.
-	*/
-	createDebug.instances = [];
-
-	/**
-	* The currently active debug mode names, and names to skip.
-	*/
-
-	createDebug.names = [];
-	createDebug.skips = [];
-
-	/**
-	* Map of special "%n" handling functions, for the debug "format" argument.
-	*
-	* Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
-	*/
-	createDebug.formatters = {};
-
-	/**
-	* Selects a color for a debug namespace
-	* @param {String} namespace The namespace string for the for the debug instance to be colored
-	* @return {Number|String} An ANSI color code for the given namespace
-	* @api private
-	*/
-	function selectColor(namespace) {
-		let hash = 0;
-
-		for (let i = 0; i < namespace.length; i++) {
-			hash = ((hash << 5) - hash) + namespace.charCodeAt(i);
-			hash |= 0; // Convert to 32bit integer
-		}
-
-		return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
-	}
-	createDebug.selectColor = selectColor;
-
-	/**
-	* Create a debugger with the given `namespace`.
-	*
-	* @param {String} namespace
-	* @return {Function}
-	* @api public
-	*/
-	function createDebug(namespace) {
-		let prevTime;
-
-		function debug(...args) {
-			// Disabled?
-			if (!debug.enabled) {
-				return;
-			}
-
-			const self = debug;
-
-			// Set `diff` timestamp
-			const curr = Number(new Date());
-			const ms = curr - (prevTime || curr);
-			self.diff = ms;
-			self.prev = prevTime;
-			self.curr = curr;
-			prevTime = curr;
-
-			args[0] = createDebug.coerce(args[0]);
-
-			if (typeof args[0] !== 'string') {
-				// Anything else let's inspect with %O
-				args.unshift('%O');
-			}
-
-			// Apply any `formatters` transformations
-			let index = 0;
-			args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
-				// If we encounter an escaped % then don't increase the array index
-				if (match === '%%') {
-					return match;
-				}
-				index++;
-				const formatter = createDebug.formatters[format];
-				if (typeof formatter === 'function') {
-					const val = args[index];
-					match = formatter.call(self, val);
-
-					// Now we need to remove `args[index]` since it's inlined in the `format`
-					args.splice(index, 1);
-					index--;
-				}
-				return match;
-			});
-
-			// Apply env-specific formatting (colors, etc.)
-			createDebug.formatArgs.call(self, args);
-
-			const logFn = self.log || createDebug.log;
-			logFn.apply(self, args);
-		}
-
-		debug.namespace = namespace;
-		debug.enabled = createDebug.enabled(namespace);
-		debug.useColors = createDebug.useColors();
-		debug.color = selectColor(namespace);
-		debug.destroy = destroy;
-		debug.extend = extend;
-		// Debug.formatArgs = formatArgs;
-		// debug.rawLog = rawLog;
-
-		// env-specific initialization logic for debug instances
-		if (typeof createDebug.init === 'function') {
-			createDebug.init(debug);
-		}
-
-		createDebug.instances.push(debug);
-
-		return debug;
-	}
-
-	function destroy() {
-		const index = createDebug.instances.indexOf(this);
-		if (index !== -1) {
-			createDebug.instances.splice(index, 1);
-			return true;
-		}
-		return false;
-	}
-
-	function extend(namespace, delimiter) {
-		const newDebug = createDebug(this.namespace + (typeof delimiter === 'undefined' ? ':' : delimiter) + namespace);
-		newDebug.log = this.log;
-		return newDebug;
-	}
-
-	/**
-	* Enables a debug mode by namespaces. This can include modes
-	* separated by a colon and wildcards.
-	*
-	* @param {String} namespaces
-	* @api public
-	*/
-	function enable(namespaces) {
-		createDebug.save(namespaces);
-
-		createDebug.names = [];
-		createDebug.skips = [];
-
-		let i;
-		const split = (typeof namespaces === 'string' ? namespaces : '').split(/[\s,]+/);
-		const len = split.length;
-
-		for (i = 0; i < len; i++) {
-			if (!split[i]) {
-				// ignore empty strings
-				continue;
-			}
-
-			namespaces = split[i].replace(/\*/g, '.*?');
-
-			if (namespaces[0] === '-') {
-				createDebug.skips.push(new RegExp('^' + namespaces.substr(1) + '$'));
-			} else {
-				createDebug.names.push(new RegExp('^' + namespaces + '$'));
-			}
-		}
-
-		for (i = 0; i < createDebug.instances.length; i++) {
-			const instance = createDebug.instances[i];
-			instance.enabled = createDebug.enabled(instance.namespace);
-		}
-	}
-
-	/**
-	* Disable debug output.
-	*
-	* @return {String} namespaces
-	* @api public
-	*/
-	function disable() {
-		const namespaces = [
-			...createDebug.names.map(toNamespace),
-			...createDebug.skips.map(toNamespace).map(namespace => '-' + namespace)
-		].join(',');
-		createDebug.enable('');
-		return namespaces;
-	}
-
-	/**
-	* Returns true if the given mode name is enabled, false otherwise.
-	*
-	* @param {String} name
-	* @return {Boolean}
-	* @api public
-	*/
-	function enabled(name) {
-		if (name[name.length - 1] === '*') {
-			return true;
-		}
-
-		let i;
-		let len;
-
-		for (i = 0, len = createDebug.skips.length; i < len; i++) {
-			if (createDebug.skips[i].test(name)) {
-				return false;
-			}
-		}
-
-		for (i = 0, len = createDebug.names.length; i < len; i++) {
-			if (createDebug.names[i].test(name)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	* Convert regexp to namespace
-	*
-	* @param {RegExp} regxep
-	* @return {String} namespace
-	* @api private
-	*/
-	function toNamespace(regexp) {
-		return regexp.toString()
-			.substring(2, regexp.toString().length - 2)
-			.replace(/\.\*\?$/, '*');
-	}
-
-	/**
-	* Coerce `val`.
-	*
-	* @param {Mixed} val
-	* @return {Mixed}
-	* @api private
-	*/
-	function coerce(val) {
-		if (val instanceof Error) {
-			return val.stack || val.message;
-		}
-		return val;
-	}
-
-	createDebug.enable(createDebug.load());
-
-	return createDebug;
-}
-
-module.exports = setup;
-
-
-/***/ }),
-
-/***/ 2911:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-/**
- * Detect Electron renderer / nwjs process, which is node, but we should
- * treat as a browser.
- */
-
-if (typeof process === 'undefined' || process.type === 'renderer' || process.browser === true || process.__nwjs) {
-	module.exports = __webpack_require__(6289);
-} else {
-	module.exports = __webpack_require__(4094);
-}
-
-
-/***/ }),
-
-/***/ 4094:
-/***/ ((module, exports, __webpack_require__) => {
-
-/**
- * Module dependencies.
- */
-
-const tty = __webpack_require__(3867);
-const util = __webpack_require__(1669);
-
-/**
- * This is the Node.js implementation of `debug()`.
- */
-
-exports.init = init;
-exports.log = log;
-exports.formatArgs = formatArgs;
-exports.save = save;
-exports.load = load;
-exports.useColors = useColors;
-
-/**
- * Colors.
- */
-
-exports.colors = [6, 2, 3, 4, 5, 1];
-
-try {
-	// Optional dependency (as in, doesn't need to be installed, NOT like optionalDependencies in package.json)
-	// eslint-disable-next-line import/no-extraneous-dependencies
-	const supportsColor = __webpack_require__(9318);
-
-	if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) {
-		exports.colors = [
-			20,
-			21,
-			26,
-			27,
-			32,
-			33,
-			38,
-			39,
-			40,
-			41,
-			42,
-			43,
-			44,
-			45,
-			56,
-			57,
-			62,
-			63,
-			68,
-			69,
-			74,
-			75,
-			76,
-			77,
-			78,
-			79,
-			80,
-			81,
-			92,
-			93,
-			98,
-			99,
-			112,
-			113,
-			128,
-			129,
-			134,
-			135,
-			148,
-			149,
-			160,
-			161,
-			162,
-			163,
-			164,
-			165,
-			166,
-			167,
-			168,
-			169,
-			170,
-			171,
-			172,
-			173,
-			178,
-			179,
-			184,
-			185,
-			196,
-			197,
-			198,
-			199,
-			200,
-			201,
-			202,
-			203,
-			204,
-			205,
-			206,
-			207,
-			208,
-			209,
-			214,
-			215,
-			220,
-			221
-		];
-	}
-} catch (error) {
-	// Swallow - we only care if `supports-color` is available; it doesn't have to be.
-}
-
-/**
- * Build up the default `inspectOpts` object from the environment variables.
- *
- *   $ DEBUG_COLORS=no DEBUG_DEPTH=10 DEBUG_SHOW_HIDDEN=enabled node script.js
- */
-
-exports.inspectOpts = Object.keys(process.env).filter(key => {
-	return /^debug_/i.test(key);
-}).reduce((obj, key) => {
-	// Camel-case
-	const prop = key
-		.substring(6)
-		.toLowerCase()
-		.replace(/_([a-z])/g, (_, k) => {
-			return k.toUpperCase();
-		});
-
-	// Coerce string value into JS value
-	let val = process.env[key];
-	if (/^(yes|on|true|enabled)$/i.test(val)) {
-		val = true;
-	} else if (/^(no|off|false|disabled)$/i.test(val)) {
-		val = false;
-	} else if (val === 'null') {
-		val = null;
-	} else {
-		val = Number(val);
-	}
-
-	obj[prop] = val;
-	return obj;
-}, {});
-
-/**
- * Is stdout a TTY? Colored output is enabled when `true`.
- */
-
-function useColors() {
-	return 'colors' in exports.inspectOpts ?
-		Boolean(exports.inspectOpts.colors) :
-		tty.isatty(process.stderr.fd);
-}
-
-/**
- * Adds ANSI color escape codes if enabled.
- *
- * @api public
- */
-
-function formatArgs(args) {
-	const {namespace: name, useColors} = this;
-
-	if (useColors) {
-		const c = this.color;
-		const colorCode = '\u001B[3' + (c < 8 ? c : '8;5;' + c);
-		const prefix = `  ${colorCode};1m${name} \u001B[0m`;
-
-		args[0] = prefix + args[0].split('\n').join('\n' + prefix);
-		args.push(colorCode + 'm+' + module.exports.humanize(this.diff) + '\u001B[0m');
-	} else {
-		args[0] = getDate() + name + ' ' + args[0];
-	}
-}
-
-function getDate() {
-	if (exports.inspectOpts.hideDate) {
-		return '';
-	}
-	return new Date().toISOString() + ' ';
-}
-
-/**
- * Invokes `util.format()` with the specified arguments and writes to stderr.
- */
-
-function log(...args) {
-	return process.stderr.write(util.format(...args) + '\n');
-}
-
-/**
- * Save `namespaces`.
- *
- * @param {String} namespaces
- * @api private
- */
-function save(namespaces) {
-	if (namespaces) {
-		process.env.DEBUG = namespaces;
-	} else {
-		// If you set a process.env field to null or undefined, it gets cast to the
-		// string 'null' or 'undefined'. Just delete instead.
-		delete process.env.DEBUG;
-	}
-}
-
-/**
- * Load `namespaces`.
- *
- * @return {String} returns the previously persisted debug modes
- * @api private
- */
-
-function load() {
-	return process.env.DEBUG;
-}
-
-/**
- * Init logic for `debug` instances.
- *
- * Create a new `inspectOpts` object in case `useColors` is set
- * differently for a particular `debug` instance.
- */
-
-function init(debug) {
-	debug.inspectOpts = {};
-
-	const keys = Object.keys(exports.inspectOpts);
-	for (let i = 0; i < keys.length; i++) {
-		debug.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
-	}
-}
-
-module.exports = __webpack_require__(1812)(exports);
-
-const {formatters} = module.exports;
-
-/**
- * Map %o to `util.inspect()`, all on a single line.
- */
-
-formatters.o = function (v) {
-	this.inspectOpts.colors = this.useColors;
-	return util.inspect(v, this.inspectOpts)
-		.replace(/\s*\n\s*/g, ' ');
-};
-
-/**
- * Map %O to `util.inspect()`, allowing multiple lines if needed.
- */
-
-formatters.O = function (v) {
-	this.inspectOpts.colors = this.useColors;
-	return util.inspect(v, this.inspectOpts);
-};
-
-
-/***/ }),
-
-/***/ 1377:
-/***/ ((module) => {
-
-/**
- * Helpers.
- */
-
-var s = 1000;
-var m = s * 60;
-var h = m * 60;
-var d = h * 24;
-var w = d * 7;
-var y = d * 365.25;
-
-/**
- * Parse or format the given `val`.
- *
- * Options:
- *
- *  - `long` verbose formatting [false]
- *
- * @param {String|Number} val
- * @param {Object} [options]
- * @throws {Error} throw an error if val is not a non-empty string or a number
- * @return {String|Number}
- * @api public
- */
-
-module.exports = function(val, options) {
-  options = options || {};
-  var type = typeof val;
-  if (type === 'string' && val.length > 0) {
-    return parse(val);
-  } else if (type === 'number' && isNaN(val) === false) {
-    return options.long ? fmtLong(val) : fmtShort(val);
-  }
-  throw new Error(
-    'val is not a non-empty string or a valid number. val=' +
-      JSON.stringify(val)
-  );
-};
-
-/**
- * Parse the given `str` and return milliseconds.
- *
- * @param {String} str
- * @return {Number}
- * @api private
- */
-
-function parse(str) {
-  str = String(str);
-  if (str.length > 100) {
-    return;
-  }
-  var match = /^((?:\d+)?\-?\d?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
-    str
-  );
-  if (!match) {
-    return;
-  }
-  var n = parseFloat(match[1]);
-  var type = (match[2] || 'ms').toLowerCase();
-  switch (type) {
-    case 'years':
-    case 'year':
-    case 'yrs':
-    case 'yr':
-    case 'y':
-      return n * y;
-    case 'weeks':
-    case 'week':
-    case 'w':
-      return n * w;
-    case 'days':
-    case 'day':
-    case 'd':
-      return n * d;
-    case 'hours':
-    case 'hour':
-    case 'hrs':
-    case 'hr':
-    case 'h':
-      return n * h;
-    case 'minutes':
-    case 'minute':
-    case 'mins':
-    case 'min':
-    case 'm':
-      return n * m;
-    case 'seconds':
-    case 'second':
-    case 'secs':
-    case 'sec':
-    case 's':
-      return n * s;
-    case 'milliseconds':
-    case 'millisecond':
-    case 'msecs':
-    case 'msec':
-    case 'ms':
-      return n;
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Short format for `ms`.
- *
- * @param {Number} ms
- * @return {String}
- * @api private
- */
-
-function fmtShort(ms) {
-  var msAbs = Math.abs(ms);
-  if (msAbs >= d) {
-    return Math.round(ms / d) + 'd';
-  }
-  if (msAbs >= h) {
-    return Math.round(ms / h) + 'h';
-  }
-  if (msAbs >= m) {
-    return Math.round(ms / m) + 'm';
-  }
-  if (msAbs >= s) {
-    return Math.round(ms / s) + 's';
-  }
-  return ms + 'ms';
-}
-
-/**
- * Long format for `ms`.
- *
- * @param {Number} ms
- * @return {String}
- * @api private
- */
-
-function fmtLong(ms) {
-  var msAbs = Math.abs(ms);
-  if (msAbs >= d) {
-    return plural(ms, msAbs, d, 'day');
-  }
-  if (msAbs >= h) {
-    return plural(ms, msAbs, h, 'hour');
-  }
-  if (msAbs >= m) {
-    return plural(ms, msAbs, m, 'minute');
-  }
-  if (msAbs >= s) {
-    return plural(ms, msAbs, s, 'second');
-  }
-  return ms + ' ms';
-}
-
-/**
- * Pluralization helper.
- */
-
-function plural(ms, msAbs, n, name) {
-  var isPlural = msAbs >= n * 1.5;
-  return Math.round(ms / n) + ' ' + name + (isPlural ? 's' : '');
-}
-
-
-/***/ }),
-
-/***/ 8265:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const ANY = Symbol('SemVer ANY')
-// hoisted class for cyclic dependency
-class Comparator {
-  static get ANY () {
-    return ANY
-  }
-  constructor (comp, options) {
-    if (!options || typeof options !== 'object') {
-      options = {
-        loose: !!options,
-        includePrerelease: false
-      }
-    }
-
-    if (comp instanceof Comparator) {
-      if (comp.loose === !!options.loose) {
-        return comp
-      } else {
-        comp = comp.value
-      }
-    }
-
-    debug('comparator', comp, options)
-    this.options = options
-    this.loose = !!options.loose
-    this.parse(comp)
-
-    if (this.semver === ANY) {
-      this.value = ''
-    } else {
-      this.value = this.operator + this.semver.version
-    }
-
-    debug('comp', this)
-  }
-
-  parse (comp) {
-    const r = this.options.loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR]
-    const m = comp.match(r)
-
-    if (!m) {
-      throw new TypeError(`Invalid comparator: ${comp}`)
-    }
-
-    this.operator = m[1] !== undefined ? m[1] : ''
-    if (this.operator === '=') {
-      this.operator = ''
-    }
-
-    // if it literally is just '>' or '' then allow anything.
-    if (!m[2]) {
-      this.semver = ANY
-    } else {
-      this.semver = new SemVer(m[2], this.options.loose)
-    }
-  }
-
-  toString () {
-    return this.value
-  }
-
-  test (version) {
-    debug('Comparator.test', version, this.options.loose)
-
-    if (this.semver === ANY || version === ANY) {
-      return true
-    }
-
-    if (typeof version === 'string') {
-      try {
-        version = new SemVer(version, this.options)
-      } catch (er) {
-        return false
-      }
-    }
-
-    return cmp(version, this.operator, this.semver, this.options)
-  }
-
-  intersects (comp, options) {
-    if (!(comp instanceof Comparator)) {
-      throw new TypeError('a Comparator is required')
-    }
-
-    if (!options || typeof options !== 'object') {
-      options = {
-        loose: !!options,
-        includePrerelease: false
-      }
-    }
-
-    if (this.operator === '') {
-      if (this.value === '') {
-        return true
-      }
-      return new Range(comp.value, options).test(this.value)
-    } else if (comp.operator === '') {
-      if (comp.value === '') {
-        return true
-      }
-      return new Range(this.value, options).test(comp.semver)
-    }
-
-    const sameDirectionIncreasing =
-      (this.operator === '>=' || this.operator === '>') &&
-      (comp.operator === '>=' || comp.operator === '>')
-    const sameDirectionDecreasing =
-      (this.operator === '<=' || this.operator === '<') &&
-      (comp.operator === '<=' || comp.operator === '<')
-    const sameSemVer = this.semver.version === comp.semver.version
-    const differentDirectionsInclusive =
-      (this.operator === '>=' || this.operator === '<=') &&
-      (comp.operator === '>=' || comp.operator === '<=')
-    const oppositeDirectionsLessThan =
-      cmp(this.semver, '<', comp.semver, options) &&
-      (this.operator === '>=' || this.operator === '>') &&
-        (comp.operator === '<=' || comp.operator === '<')
-    const oppositeDirectionsGreaterThan =
-      cmp(this.semver, '>', comp.semver, options) &&
-      (this.operator === '<=' || this.operator === '<') &&
-        (comp.operator === '>=' || comp.operator === '>')
-
-    return (
-      sameDirectionIncreasing ||
-      sameDirectionDecreasing ||
-      (sameSemVer && differentDirectionsInclusive) ||
-      oppositeDirectionsLessThan ||
-      oppositeDirectionsGreaterThan
-    )
-  }
-}
-
-module.exports = Comparator
-
-const {re, t} = __webpack_require__(5422)
-const cmp = __webpack_require__(8812)
-const debug = __webpack_require__(1202)
-const SemVer = __webpack_require__(6103)
-const Range = __webpack_require__(9746)
-
-
-/***/ }),
-
-/***/ 9746:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-// hoisted class for cyclic dependency
-class Range {
-  constructor (range, options) {
-    if (!options || typeof options !== 'object') {
-      options = {
-        loose: !!options,
-        includePrerelease: false
-      }
-    }
-
-    if (range instanceof Range) {
-      if (
-        range.loose === !!options.loose &&
-        range.includePrerelease === !!options.includePrerelease
-      ) {
-        return range
-      } else {
-        return new Range(range.raw, options)
-      }
-    }
-
-    if (range instanceof Comparator) {
-      // just put it in the set and return
-      this.raw = range.value
-      this.set = [[range]]
-      this.format()
-      return this
-    }
-
-    this.options = options
-    this.loose = !!options.loose
-    this.includePrerelease = !!options.includePrerelease
-
-    // First, split based on boolean or ||
-    this.raw = range
-    this.set = range
-      .split(/\s*\|\|\s*/)
-      // map the range to a 2d array of comparators
-      .map(range => this.parseRange(range.trim()))
-      // throw out any comparator lists that are empty
-      // this generally means that it was not a valid range, which is allowed
-      // in loose mode, but will still throw if the WHOLE range is invalid.
-      .filter(c => c.length)
-
-    if (!this.set.length) {
-      throw new TypeError(`Invalid SemVer Range: ${range}`)
-    }
-
-    this.format()
-  }
-
-  format () {
-    this.range = this.set
-      .map((comps) => {
-        return comps.join(' ').trim()
-      })
-      .join('||')
-      .trim()
-    return this.range
-  }
-
-  toString () {
-    return this.range
-  }
-
-  parseRange (range) {
-    const loose = this.options.loose
-    range = range.trim()
-    // `1.2.3 - 1.2.4` => `>=1.2.3 <=1.2.4`
-    const hr = loose ? re[t.HYPHENRANGELOOSE] : re[t.HYPHENRANGE]
-    range = range.replace(hr, hyphenReplace(this.options.includePrerelease))
-    debug('hyphen replace', range)
-    // `> 1.2.3 < 1.2.5` => `>1.2.3 <1.2.5`
-    range = range.replace(re[t.COMPARATORTRIM], comparatorTrimReplace)
-    debug('comparator trim', range, re[t.COMPARATORTRIM])
-
-    // `~ 1.2.3` => `~1.2.3`
-    range = range.replace(re[t.TILDETRIM], tildeTrimReplace)
-
-    // `^ 1.2.3` => `^1.2.3`
-    range = range.replace(re[t.CARETTRIM], caretTrimReplace)
-
-    // normalize spaces
-    range = range.split(/\s+/).join(' ')
-
-    // At this point, the range is completely trimmed and
-    // ready to be split into comparators.
-
-    const compRe = loose ? re[t.COMPARATORLOOSE] : re[t.COMPARATOR]
-    return range
-      .split(' ')
-      .map(comp => parseComparator(comp, this.options))
-      .join(' ')
-      .split(/\s+/)
-      .map(comp => replaceGTE0(comp, this.options))
-      // in loose mode, throw out any that are not valid comparators
-      .filter(this.options.loose ? comp => !!comp.match(compRe) : () => true)
-      .map(comp => new Comparator(comp, this.options))
-  }
-
-  intersects (range, options) {
-    if (!(range instanceof Range)) {
-      throw new TypeError('a Range is required')
-    }
-
-    return this.set.some((thisComparators) => {
-      return (
-        isSatisfiable(thisComparators, options) &&
-        range.set.some((rangeComparators) => {
-          return (
-            isSatisfiable(rangeComparators, options) &&
-            thisComparators.every((thisComparator) => {
-              return rangeComparators.every((rangeComparator) => {
-                return thisComparator.intersects(rangeComparator, options)
-              })
-            })
-          )
-        })
-      )
-    })
-  }
-
-  // if ANY of the sets match ALL of its comparators, then pass
-  test (version) {
-    if (!version) {
-      return false
-    }
-
-    if (typeof version === 'string') {
-      try {
-        version = new SemVer(version, this.options)
-      } catch (er) {
-        return false
-      }
-    }
-
-    for (let i = 0; i < this.set.length; i++) {
-      if (testSet(this.set[i], version, this.options)) {
-        return true
-      }
-    }
-    return false
-  }
-}
-module.exports = Range
-
-const Comparator = __webpack_require__(8265)
-const debug = __webpack_require__(1202)
-const SemVer = __webpack_require__(6103)
-const {
-  re,
-  t,
-  comparatorTrimReplace,
-  tildeTrimReplace,
-  caretTrimReplace
-} = __webpack_require__(5422)
-
-// take a set of comparators and determine whether there
-// exists a version which can satisfy it
-const isSatisfiable = (comparators, options) => {
-  let result = true
-  const remainingComparators = comparators.slice()
-  let testComparator = remainingComparators.pop()
-
-  while (result && remainingComparators.length) {
-    result = remainingComparators.every((otherComparator) => {
-      return testComparator.intersects(otherComparator, options)
-    })
-
-    testComparator = remainingComparators.pop()
-  }
-
-  return result
-}
-
-// comprised of xranges, tildes, stars, and gtlt's at this point.
-// already replaced the hyphen ranges
-// turn into a set of JUST comparators.
-const parseComparator = (comp, options) => {
-  debug('comp', comp, options)
-  comp = replaceCarets(comp, options)
-  debug('caret', comp)
-  comp = replaceTildes(comp, options)
-  debug('tildes', comp)
-  comp = replaceXRanges(comp, options)
-  debug('xrange', comp)
-  comp = replaceStars(comp, options)
-  debug('stars', comp)
-  return comp
-}
-
-const isX = id => !id || id.toLowerCase() === 'x' || id === '*'
-
-// ~, ~> --> * (any, kinda silly)
-// ~2, ~2.x, ~2.x.x, ~>2, ~>2.x ~>2.x.x --> >=2.0.0 <3.0.0-0
-// ~2.0, ~2.0.x, ~>2.0, ~>2.0.x --> >=2.0.0 <2.1.0-0
-// ~1.2, ~1.2.x, ~>1.2, ~>1.2.x --> >=1.2.0 <1.3.0-0
-// ~1.2.3, ~>1.2.3 --> >=1.2.3 <1.3.0-0
-// ~1.2.0, ~>1.2.0 --> >=1.2.0 <1.3.0-0
-const replaceTildes = (comp, options) =>
-  comp.trim().split(/\s+/).map((comp) => {
-    return replaceTilde(comp, options)
-  }).join(' ')
-
-const replaceTilde = (comp, options) => {
-  const r = options.loose ? re[t.TILDELOOSE] : re[t.TILDE]
-  return comp.replace(r, (_, M, m, p, pr) => {
-    debug('tilde', comp, _, M, m, p, pr)
-    let ret
-
-    if (isX(M)) {
-      ret = ''
-    } else if (isX(m)) {
-      ret = `>=${M}.0.0 <${+M + 1}.0.0-0`
-    } else if (isX(p)) {
-      // ~1.2 == >=1.2.0 <1.3.0-0
-      ret = `>=${M}.${m}.0 <${M}.${+m + 1}.0-0`
-    } else if (pr) {
-      debug('replaceTilde pr', pr)
-      ret = `>=${M}.${m}.${p}-${pr
-      } <${M}.${+m + 1}.0-0`
-    } else {
-      // ~1.2.3 == >=1.2.3 <1.3.0-0
-      ret = `>=${M}.${m}.${p
-      } <${M}.${+m + 1}.0-0`
-    }
-
-    debug('tilde return', ret)
-    return ret
-  })
-}
-
-// ^ --> * (any, kinda silly)
-// ^2, ^2.x, ^2.x.x --> >=2.0.0 <3.0.0-0
-// ^2.0, ^2.0.x --> >=2.0.0 <3.0.0-0
-// ^1.2, ^1.2.x --> >=1.2.0 <2.0.0-0
-// ^1.2.3 --> >=1.2.3 <2.0.0-0
-// ^1.2.0 --> >=1.2.0 <2.0.0-0
-const replaceCarets = (comp, options) =>
-  comp.trim().split(/\s+/).map((comp) => {
-    return replaceCaret(comp, options)
-  }).join(' ')
-
-const replaceCaret = (comp, options) => {
-  debug('caret', comp, options)
-  const r = options.loose ? re[t.CARETLOOSE] : re[t.CARET]
-  const z = options.includePrerelease ? '-0' : ''
-  return comp.replace(r, (_, M, m, p, pr) => {
-    debug('caret', comp, _, M, m, p, pr)
-    let ret
-
-    if (isX(M)) {
-      ret = ''
-    } else if (isX(m)) {
-      ret = `>=${M}.0.0${z} <${+M + 1}.0.0-0`
-    } else if (isX(p)) {
-      if (M === '0') {
-        ret = `>=${M}.${m}.0${z} <${M}.${+m + 1}.0-0`
-      } else {
-        ret = `>=${M}.${m}.0${z} <${+M + 1}.0.0-0`
-      }
-    } else if (pr) {
-      debug('replaceCaret pr', pr)
-      if (M === '0') {
-        if (m === '0') {
-          ret = `>=${M}.${m}.${p}-${pr
-          } <${M}.${m}.${+p + 1}-0`
-        } else {
-          ret = `>=${M}.${m}.${p}-${pr
-          } <${M}.${+m + 1}.0-0`
-        }
-      } else {
-        ret = `>=${M}.${m}.${p}-${pr
-        } <${+M + 1}.0.0-0`
-      }
-    } else {
-      debug('no pr')
-      if (M === '0') {
-        if (m === '0') {
-          ret = `>=${M}.${m}.${p
-          }${z} <${M}.${m}.${+p + 1}-0`
-        } else {
-          ret = `>=${M}.${m}.${p
-          }${z} <${M}.${+m + 1}.0-0`
-        }
-      } else {
-        ret = `>=${M}.${m}.${p
-        } <${+M + 1}.0.0-0`
-      }
-    }
-
-    debug('caret return', ret)
-    return ret
-  })
-}
-
-const replaceXRanges = (comp, options) => {
-  debug('replaceXRanges', comp, options)
-  return comp.split(/\s+/).map((comp) => {
-    return replaceXRange(comp, options)
-  }).join(' ')
-}
-
-const replaceXRange = (comp, options) => {
-  comp = comp.trim()
-  const r = options.loose ? re[t.XRANGELOOSE] : re[t.XRANGE]
-  return comp.replace(r, (ret, gtlt, M, m, p, pr) => {
-    debug('xRange', comp, ret, gtlt, M, m, p, pr)
-    const xM = isX(M)
-    const xm = xM || isX(m)
-    const xp = xm || isX(p)
-    const anyX = xp
-
-    if (gtlt === '=' && anyX) {
-      gtlt = ''
-    }
-
-    // if we're including prereleases in the match, then we need
-    // to fix this to -0, the lowest possible prerelease value
-    pr = options.includePrerelease ? '-0' : ''
-
-    if (xM) {
-      if (gtlt === '>' || gtlt === '<') {
-        // nothing is allowed
-        ret = '<0.0.0-0'
-      } else {
-        // nothing is forbidden
-        ret = '*'
-      }
-    } else if (gtlt && anyX) {
-      // we know patch is an x, because we have any x at all.
-      // replace X with 0
-      if (xm) {
-        m = 0
-      }
-      p = 0
-
-      if (gtlt === '>') {
-        // >1 => >=2.0.0
-        // >1.2 => >=1.3.0
-        gtlt = '>='
-        if (xm) {
-          M = +M + 1
-          m = 0
-          p = 0
-        } else {
-          m = +m + 1
-          p = 0
-        }
-      } else if (gtlt === '<=') {
-        // <=0.7.x is actually <0.8.0, since any 0.7.x should
-        // pass.  Similarly, <=7.x is actually <8.0.0, etc.
-        gtlt = '<'
-        if (xm) {
-          M = +M + 1
-        } else {
-          m = +m + 1
-        }
-      }
-
-      if (gtlt === '<')
-        pr = '-0'
-
-      ret = `${gtlt + M}.${m}.${p}${pr}`
-    } else if (xm) {
-      ret = `>=${M}.0.0${pr} <${+M + 1}.0.0-0`
-    } else if (xp) {
-      ret = `>=${M}.${m}.0${pr
-      } <${M}.${+m + 1}.0-0`
-    }
-
-    debug('xRange return', ret)
-
-    return ret
-  })
-}
-
-// Because * is AND-ed with everything else in the comparator,
-// and '' means "any version", just remove the *s entirely.
-const replaceStars = (comp, options) => {
-  debug('replaceStars', comp, options)
-  // Looseness is ignored here.  star is always as loose as it gets!
-  return comp.trim().replace(re[t.STAR], '')
-}
-
-const replaceGTE0 = (comp, options) => {
-  debug('replaceGTE0', comp, options)
-  return comp.trim()
-    .replace(re[options.includePrerelease ? t.GTE0PRE : t.GTE0], '')
-}
-
-// This function is passed to string.replace(re[t.HYPHENRANGE])
-// M, m, patch, prerelease, build
-// 1.2 - 3.4.5 => >=1.2.0 <=3.4.5
-// 1.2.3 - 3.4 => >=1.2.0 <3.5.0-0 Any 3.4.x will do
-// 1.2 - 3.4 => >=1.2.0 <3.5.0-0
-const hyphenReplace = incPr => ($0,
-  from, fM, fm, fp, fpr, fb,
-  to, tM, tm, tp, tpr, tb) => {
-  if (isX(fM)) {
-    from = ''
-  } else if (isX(fm)) {
-    from = `>=${fM}.0.0${incPr ? '-0' : ''}`
-  } else if (isX(fp)) {
-    from = `>=${fM}.${fm}.0${incPr ? '-0' : ''}`
-  } else if (fpr) {
-    from = `>=${from}`
-  } else {
-    from = `>=${from}${incPr ? '-0' : ''}`
-  }
-
-  if (isX(tM)) {
-    to = ''
-  } else if (isX(tm)) {
-    to = `<${+tM + 1}.0.0-0`
-  } else if (isX(tp)) {
-    to = `<${tM}.${+tm + 1}.0-0`
-  } else if (tpr) {
-    to = `<=${tM}.${tm}.${tp}-${tpr}`
-  } else if (incPr) {
-    to = `<${tM}.${tm}.${+tp + 1}-0`
-  } else {
-    to = `<=${to}`
-  }
-
-  return (`${from} ${to}`).trim()
-}
-
-const testSet = (set, version, options) => {
-  for (let i = 0; i < set.length; i++) {
-    if (!set[i].test(version)) {
-      return false
-    }
-  }
-
-  if (version.prerelease.length && !options.includePrerelease) {
-    // Find the set of versions that are allowed to have prereleases
-    // For example, ^1.2.3-pr.1 desugars to >=1.2.3-pr.1 <2.0.0
-    // That should allow `1.2.3-pr.2` to pass.
-    // However, `1.2.4-alpha.notready` should NOT be allowed,
-    // even though it's within the range set by the comparators.
-    for (let i = 0; i < set.length; i++) {
-      debug(set[i].semver)
-      if (set[i].semver === Comparator.ANY) {
-        continue
-      }
-
-      if (set[i].semver.prerelease.length > 0) {
-        const allowed = set[i].semver
-        if (allowed.major === version.major &&
-            allowed.minor === version.minor &&
-            allowed.patch === version.patch) {
-          return true
-        }
-      }
-    }
-
-    // Version has a -pre, but it's not one of the ones we like.
-    return false
-  }
-
-  return true
-}
-
-
-/***/ }),
-
-/***/ 6103:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const debug = __webpack_require__(1202)
-const { MAX_LENGTH, MAX_SAFE_INTEGER } = __webpack_require__(390)
-const { re, t } = __webpack_require__(5422)
-
-const { compareIdentifiers } = __webpack_require__(6611)
-class SemVer {
-  constructor (version, options) {
-    if (!options || typeof options !== 'object') {
-      options = {
-        loose: !!options,
-        includePrerelease: false
-      }
-    }
-    if (version instanceof SemVer) {
-      if (version.loose === !!options.loose &&
-          version.includePrerelease === !!options.includePrerelease) {
-        return version
-      } else {
-        version = version.version
-      }
-    } else if (typeof version !== 'string') {
-      throw new TypeError(`Invalid Version: ${version}`)
-    }
-
-    if (version.length > MAX_LENGTH) {
-      throw new TypeError(
-        `version is longer than ${MAX_LENGTH} characters`
-      )
-    }
-
-    debug('SemVer', version, options)
-    this.options = options
-    this.loose = !!options.loose
-    // this isn't actually relevant for versions, but keep it so that we
-    // don't run into trouble passing this.options around.
-    this.includePrerelease = !!options.includePrerelease
-
-    const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL])
-
-    if (!m) {
-      throw new TypeError(`Invalid Version: ${version}`)
-    }
-
-    this.raw = version
-
-    // these are actually numbers
-    this.major = +m[1]
-    this.minor = +m[2]
-    this.patch = +m[3]
-
-    if (this.major > MAX_SAFE_INTEGER || this.major < 0) {
-      throw new TypeError('Invalid major version')
-    }
-
-    if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) {
-      throw new TypeError('Invalid minor version')
-    }
-
-    if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) {
-      throw new TypeError('Invalid patch version')
-    }
-
-    // numberify any prerelease numeric ids
-    if (!m[4]) {
-      this.prerelease = []
-    } else {
-      this.prerelease = m[4].split('.').map((id) => {
-        if (/^[0-9]+$/.test(id)) {
-          const num = +id
-          if (num >= 0 && num < MAX_SAFE_INTEGER) {
-            return num
-          }
-        }
-        return id
-      })
-    }
-
-    this.build = m[5] ? m[5].split('.') : []
-    this.format()
-  }
-
-  format () {
-    this.version = `${this.major}.${this.minor}.${this.patch}`
-    if (this.prerelease.length) {
-      this.version += `-${this.prerelease.join('.')}`
-    }
-    return this.version
-  }
-
-  toString () {
-    return this.version
-  }
-
-  compare (other) {
-    debug('SemVer.compare', this.version, this.options, other)
-    if (!(other instanceof SemVer)) {
-      if (typeof other === 'string' && other === this.version) {
-        return 0
-      }
-      other = new SemVer(other, this.options)
-    }
-
-    if (other.version === this.version) {
-      return 0
-    }
-
-    return this.compareMain(other) || this.comparePre(other)
-  }
-
-  compareMain (other) {
-    if (!(other instanceof SemVer)) {
-      other = new SemVer(other, this.options)
-    }
-
-    return (
-      compareIdentifiers(this.major, other.major) ||
-      compareIdentifiers(this.minor, other.minor) ||
-      compareIdentifiers(this.patch, other.patch)
-    )
-  }
-
-  comparePre (other) {
-    if (!(other instanceof SemVer)) {
-      other = new SemVer(other, this.options)
-    }
-
-    // NOT having a prerelease is > having one
-    if (this.prerelease.length && !other.prerelease.length) {
-      return -1
-    } else if (!this.prerelease.length && other.prerelease.length) {
-      return 1
-    } else if (!this.prerelease.length && !other.prerelease.length) {
-      return 0
-    }
-
-    let i = 0
-    do {
-      const a = this.prerelease[i]
-      const b = other.prerelease[i]
-      debug('prerelease compare', i, a, b)
-      if (a === undefined && b === undefined) {
-        return 0
-      } else if (b === undefined) {
-        return 1
-      } else if (a === undefined) {
-        return -1
-      } else if (a === b) {
-        continue
-      } else {
-        return compareIdentifiers(a, b)
-      }
-    } while (++i)
-  }
-
-  compareBuild (other) {
-    if (!(other instanceof SemVer)) {
-      other = new SemVer(other, this.options)
-    }
-
-    let i = 0
-    do {
-      const a = this.build[i]
-      const b = other.build[i]
-      debug('prerelease compare', i, a, b)
-      if (a === undefined && b === undefined) {
-        return 0
-      } else if (b === undefined) {
-        return 1
-      } else if (a === undefined) {
-        return -1
-      } else if (a === b) {
-        continue
-      } else {
-        return compareIdentifiers(a, b)
-      }
-    } while (++i)
-  }
-
-  // preminor will bump the version up to the next minor release, and immediately
-  // down to pre-release. premajor and prepatch work the same way.
-  inc (release, identifier) {
-    switch (release) {
-      case 'premajor':
-        this.prerelease.length = 0
-        this.patch = 0
-        this.minor = 0
-        this.major++
-        this.inc('pre', identifier)
-        break
-      case 'preminor':
-        this.prerelease.length = 0
-        this.patch = 0
-        this.minor++
-        this.inc('pre', identifier)
-        break
-      case 'prepatch':
-        // If this is already a prerelease, it will bump to the next version
-        // drop any prereleases that might already exist, since they are not
-        // relevant at this point.
-        this.prerelease.length = 0
-        this.inc('patch', identifier)
-        this.inc('pre', identifier)
-        break
-      // If the input is a non-prerelease version, this acts the same as
-      // prepatch.
-      case 'prerelease':
-        if (this.prerelease.length === 0) {
-          this.inc('patch', identifier)
-        }
-        this.inc('pre', identifier)
-        break
-
-      case 'major':
-        // If this is a pre-major version, bump up to the same major version.
-        // Otherwise increment major.
-        // 1.0.0-5 bumps to 1.0.0
-        // 1.1.0 bumps to 2.0.0
-        if (
-          this.minor !== 0 ||
-          this.patch !== 0 ||
-          this.prerelease.length === 0
-        ) {
-          this.major++
-        }
-        this.minor = 0
-        this.patch = 0
-        this.prerelease = []
-        break
-      case 'minor':
-        // If this is a pre-minor version, bump up to the same minor version.
-        // Otherwise increment minor.
-        // 1.2.0-5 bumps to 1.2.0
-        // 1.2.1 bumps to 1.3.0
-        if (this.patch !== 0 || this.prerelease.length === 0) {
-          this.minor++
-        }
-        this.patch = 0
-        this.prerelease = []
-        break
-      case 'patch':
-        // If this is not a pre-release version, it will increment the patch.
-        // If it is a pre-release it will bump up to the same patch version.
-        // 1.2.0-5 patches to 1.2.0
-        // 1.2.0 patches to 1.2.1
-        if (this.prerelease.length === 0) {
-          this.patch++
-        }
-        this.prerelease = []
-        break
-      // This probably shouldn't be used publicly.
-      // 1.0.0 'pre' would become 1.0.0-0 which is the wrong direction.
-      case 'pre':
-        if (this.prerelease.length === 0) {
-          this.prerelease = [0]
-        } else {
-          let i = this.prerelease.length
-          while (--i >= 0) {
-            if (typeof this.prerelease[i] === 'number') {
-              this.prerelease[i]++
-              i = -2
-            }
-          }
-          if (i === -1) {
-            // didn't increment anything
-            this.prerelease.push(0)
-          }
-        }
-        if (identifier) {
-          // 1.2.0-beta.1 bumps to 1.2.0-beta.2,
-          // 1.2.0-beta.fooblz or 1.2.0-beta bumps to 1.2.0-beta.0
-          if (this.prerelease[0] === identifier) {
-            if (isNaN(this.prerelease[1])) {
-              this.prerelease = [identifier, 0]
-            }
-          } else {
-            this.prerelease = [identifier, 0]
-          }
-        }
-        break
-
-      default:
-        throw new Error(`invalid increment argument: ${release}`)
-    }
-    this.format()
-    this.raw = this.version
-    return this
-  }
-}
-
-module.exports = SemVer
-
-
-/***/ }),
-
-/***/ 8394:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const parse = __webpack_require__(9557)
-const clean = (version, options) => {
-  const s = parse(version.trim().replace(/^[=v]+/, ''), options)
-  return s ? s.version : null
-}
-module.exports = clean
-
-
-/***/ }),
-
-/***/ 8812:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const eq = __webpack_require__(9612)
-const neq = __webpack_require__(4608)
-const gt = __webpack_require__(2208)
-const gte = __webpack_require__(7104)
-const lt = __webpack_require__(7492)
-const lte = __webpack_require__(5947)
-
-const cmp = (a, op, b, loose) => {
-  switch (op) {
-    case '===':
-      if (typeof a === 'object')
-        a = a.version
-      if (typeof b === 'object')
-        b = b.version
-      return a === b
-
-    case '!==':
-      if (typeof a === 'object')
-        a = a.version
-      if (typeof b === 'object')
-        b = b.version
-      return a !== b
-
-    case '':
-    case '=':
-    case '==':
-      return eq(a, b, loose)
-
-    case '!=':
-      return neq(a, b, loose)
-
-    case '>':
-      return gt(a, b, loose)
-
-    case '>=':
-      return gte(a, b, loose)
-
-    case '<':
-      return lt(a, b, loose)
-
-    case '<=':
-      return lte(a, b, loose)
-
-    default:
-      throw new TypeError(`Invalid operator: ${op}`)
-  }
-}
-module.exports = cmp
-
-
-/***/ }),
-
-/***/ 1590:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const parse = __webpack_require__(9557)
-const {re, t} = __webpack_require__(5422)
-
-const coerce = (version, options) => {
-  if (version instanceof SemVer) {
-    return version
-  }
-
-  if (typeof version === 'number') {
-    version = String(version)
-  }
-
-  if (typeof version !== 'string') {
-    return null
-  }
-
-  options = options || {}
-
-  let match = null
-  if (!options.rtl) {
-    match = version.match(re[t.COERCE])
-  } else {
-    // Find the right-most coercible string that does not share
-    // a terminus with a more left-ward coercible string.
-    // Eg, '1.2.3.4' wants to coerce '2.3.4', not '3.4' or '4'
-    //
-    // Walk through the string checking with a /g regexp
-    // Manually set the index so as to pick up overlapping matches.
-    // Stop when we get a match that ends at the string end, since no
-    // coercible string can be more right-ward without the same terminus.
-    let next
-    while ((next = re[t.COERCERTL].exec(version)) &&
-        (!match || match.index + match[0].length !== version.length)
-    ) {
-      if (!match ||
-            next.index + next[0].length !== match.index + match[0].length) {
-        match = next
-      }
-      re[t.COERCERTL].lastIndex = next.index + next[1].length + next[2].length
-    }
-    // leave it in a clean state
-    re[t.COERCERTL].lastIndex = -1
-  }
-
-  if (match === null)
-    return null
-
-  return parse(`${match[2]}.${match[3] || '0'}.${match[4] || '0'}`, options)
-}
-module.exports = coerce
-
-
-/***/ }),
-
-/***/ 6510:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const compareBuild = (a, b, loose) => {
-  const versionA = new SemVer(a, loose)
-  const versionB = new SemVer(b, loose)
-  return versionA.compare(versionB) || versionA.compareBuild(versionB)
-}
-module.exports = compareBuild
-
-
-/***/ }),
-
-/***/ 7790:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compare = __webpack_require__(7788)
-const compareLoose = (a, b) => compare(a, b, true)
-module.exports = compareLoose
-
-
-/***/ }),
-
-/***/ 7788:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const compare = (a, b, loose) =>
-  new SemVer(a, loose).compare(new SemVer(b, loose))
-
-module.exports = compare
-
-
-/***/ }),
-
-/***/ 2613:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const parse = __webpack_require__(9557)
-const eq = __webpack_require__(9612)
-
-const diff = (version1, version2) => {
-  if (eq(version1, version2)) {
-    return null
-  } else {
-    const v1 = parse(version1)
-    const v2 = parse(version2)
-    const hasPre = v1.prerelease.length || v2.prerelease.length
-    const prefix = hasPre ? 'pre' : ''
-    const defaultResult = hasPre ? 'prerelease' : ''
-    for (const key in v1) {
-      if (key === 'major' || key === 'minor' || key === 'patch') {
-        if (v1[key] !== v2[key]) {
-          return prefix + key
-        }
-      }
-    }
-    return defaultResult // may be undefined
-  }
-}
-module.exports = diff
-
-
-/***/ }),
-
-/***/ 9612:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compare = __webpack_require__(7788)
-const eq = (a, b, loose) => compare(a, b, loose) === 0
-module.exports = eq
-
-
-/***/ }),
-
-/***/ 2208:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compare = __webpack_require__(7788)
-const gt = (a, b, loose) => compare(a, b, loose) > 0
-module.exports = gt
-
-
-/***/ }),
-
-/***/ 7104:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compare = __webpack_require__(7788)
-const gte = (a, b, loose) => compare(a, b, loose) >= 0
-module.exports = gte
-
-
-/***/ }),
-
-/***/ 6498:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-
-const inc = (version, release, options, identifier) => {
-  if (typeof (options) === 'string') {
-    identifier = options
-    options = undefined
-  }
-
-  try {
-    return new SemVer(version, options).inc(release, identifier).version
-  } catch (er) {
-    return null
-  }
-}
-module.exports = inc
-
-
-/***/ }),
-
-/***/ 7492:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compare = __webpack_require__(7788)
-const lt = (a, b, loose) => compare(a, b, loose) < 0
-module.exports = lt
-
-
-/***/ }),
-
-/***/ 5947:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compare = __webpack_require__(7788)
-const lte = (a, b, loose) => compare(a, b, loose) <= 0
-module.exports = lte
-
-
-/***/ }),
-
-/***/ 5308:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const major = (a, loose) => new SemVer(a, loose).major
-module.exports = major
-
-
-/***/ }),
-
-/***/ 8948:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const minor = (a, loose) => new SemVer(a, loose).minor
-module.exports = minor
-
-
-/***/ }),
-
-/***/ 4608:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compare = __webpack_require__(7788)
-const neq = (a, b, loose) => compare(a, b, loose) !== 0
-module.exports = neq
-
-
-/***/ }),
-
-/***/ 9557:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const {MAX_LENGTH} = __webpack_require__(390)
-const { re, t } = __webpack_require__(5422)
-const SemVer = __webpack_require__(6103)
-
-const parse = (version, options) => {
-  if (!options || typeof options !== 'object') {
-    options = {
-      loose: !!options,
-      includePrerelease: false
-    }
-  }
-
-  if (version instanceof SemVer) {
-    return version
-  }
-
-  if (typeof version !== 'string') {
-    return null
-  }
-
-  if (version.length > MAX_LENGTH) {
-    return null
-  }
-
-  const r = options.loose ? re[t.LOOSE] : re[t.FULL]
-  if (!r.test(version)) {
-    return null
-  }
-
-  try {
-    return new SemVer(version, options)
-  } catch (er) {
-    return null
-  }
-}
-
-module.exports = parse
-
-
-/***/ }),
-
-/***/ 9819:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const patch = (a, loose) => new SemVer(a, loose).patch
-module.exports = patch
-
-
-/***/ }),
-
-/***/ 3856:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const parse = __webpack_require__(9557)
-const prerelease = (version, options) => {
-  const parsed = parse(version, options)
-  return (parsed && parsed.prerelease.length) ? parsed.prerelease : null
-}
-module.exports = prerelease
-
-
-/***/ }),
-
-/***/ 6997:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compare = __webpack_require__(7788)
-const rcompare = (a, b, loose) => compare(b, a, loose)
-module.exports = rcompare
-
-
-/***/ }),
-
-/***/ 3573:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compareBuild = __webpack_require__(6510)
-const rsort = (list, loose) => list.sort((a, b) => compareBuild(b, a, loose))
-module.exports = rsort
-
-
-/***/ }),
-
-/***/ 3006:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const Range = __webpack_require__(9746)
-const satisfies = (version, range, options) => {
-  try {
-    range = new Range(range, options)
-  } catch (er) {
-    return false
-  }
-  return range.test(version)
-}
-module.exports = satisfies
-
-
-/***/ }),
-
-/***/ 649:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const compareBuild = __webpack_require__(6510)
-const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose))
-module.exports = sort
-
-
-/***/ }),
-
-/***/ 9561:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const parse = __webpack_require__(9557)
-const valid = (version, options) => {
-  const v = parse(version, options)
-  return v ? v.version : null
-}
-module.exports = valid
-
-
-/***/ }),
-
-/***/ 1449:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-// just pre-load all the stuff that index.js lazily exports
-const internalRe = __webpack_require__(5422)
-module.exports = {
-  re: internalRe.re,
-  src: internalRe.src,
-  tokens: internalRe.t,
-  SEMVER_SPEC_VERSION: __webpack_require__(390).SEMVER_SPEC_VERSION,
-  SemVer: __webpack_require__(6103),
-  compareIdentifiers: __webpack_require__(6611).compareIdentifiers,
-  rcompareIdentifiers: __webpack_require__(6611).rcompareIdentifiers,
-  parse: __webpack_require__(9557),
-  valid: __webpack_require__(9561),
-  clean: __webpack_require__(8394),
-  inc: __webpack_require__(6498),
-  diff: __webpack_require__(2613),
-  major: __webpack_require__(5308),
-  minor: __webpack_require__(8948),
-  patch: __webpack_require__(9819),
-  prerelease: __webpack_require__(3856),
-  compare: __webpack_require__(7788),
-  rcompare: __webpack_require__(6997),
-  compareLoose: __webpack_require__(7790),
-  compareBuild: __webpack_require__(6510),
-  sort: __webpack_require__(649),
-  rsort: __webpack_require__(3573),
-  gt: __webpack_require__(2208),
-  lt: __webpack_require__(7492),
-  eq: __webpack_require__(9612),
-  neq: __webpack_require__(4608),
-  gte: __webpack_require__(7104),
-  lte: __webpack_require__(5947),
-  cmp: __webpack_require__(8812),
-  coerce: __webpack_require__(1590),
-  Comparator: __webpack_require__(8265),
-  Range: __webpack_require__(9746),
-  satisfies: __webpack_require__(3006),
-  toComparators: __webpack_require__(184),
-  maxSatisfying: __webpack_require__(8489),
-  minSatisfying: __webpack_require__(8128),
-  minVersion: __webpack_require__(416),
-  validRange: __webpack_require__(5513),
-  outside: __webpack_require__(1086),
-  gtr: __webpack_require__(9977),
-  ltr: __webpack_require__(2207),
-  intersects: __webpack_require__(6364),
-  simplifyRange: __webpack_require__(6938),
-  subset: __webpack_require__(1989),
-}
-
-
-/***/ }),
-
-/***/ 390:
-/***/ ((module) => {
-
-// Note: this is the semver.org version of the spec that it implements
-// Not necessarily the package version of this code.
-const SEMVER_SPEC_VERSION = '2.0.0'
-
-const MAX_LENGTH = 256
-const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER ||
-  /* istanbul ignore next */ 9007199254740991
-
-// Max safe segment length for coercion.
-const MAX_SAFE_COMPONENT_LENGTH = 16
-
-module.exports = {
-  SEMVER_SPEC_VERSION,
-  MAX_LENGTH,
-  MAX_SAFE_INTEGER,
-  MAX_SAFE_COMPONENT_LENGTH
-}
-
-
-/***/ }),
-
-/***/ 1202:
-/***/ ((module) => {
-
-const debug = (
-  typeof process === 'object' &&
-  process.env &&
-  process.env.NODE_DEBUG &&
-  /\bsemver\b/i.test(process.env.NODE_DEBUG)
-) ? (...args) => console.error('SEMVER', ...args)
-  : () => {}
-
-module.exports = debug
-
-
-/***/ }),
-
-/***/ 6611:
-/***/ ((module) => {
-
-const numeric = /^[0-9]+$/
-const compareIdentifiers = (a, b) => {
-  const anum = numeric.test(a)
-  const bnum = numeric.test(b)
-
-  if (anum && bnum) {
-    a = +a
-    b = +b
-  }
-
-  return a === b ? 0
-    : (anum && !bnum) ? -1
-    : (bnum && !anum) ? 1
-    : a < b ? -1
-    : 1
-}
-
-const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a)
-
-module.exports = {
-  compareIdentifiers,
-  rcompareIdentifiers
-}
-
-
-/***/ }),
-
-/***/ 5422:
-/***/ ((module, exports, __webpack_require__) => {
-
-const { MAX_SAFE_COMPONENT_LENGTH } = __webpack_require__(390)
-const debug = __webpack_require__(1202)
-exports = module.exports = {}
-
-// The actual regexps go on exports.re
-const re = exports.re = []
-const src = exports.src = []
-const t = exports.t = {}
-let R = 0
-
-const createToken = (name, value, isGlobal) => {
-  const index = R++
-  debug(index, value)
-  t[name] = index
-  src[index] = value
-  re[index] = new RegExp(value, isGlobal ? 'g' : undefined)
-}
-
-// The following Regular Expressions can be used for tokenizing,
-// validating, and parsing SemVer version strings.
-
-// ## Numeric Identifier
-// A single `0`, or a non-zero digit followed by zero or more digits.
-
-createToken('NUMERICIDENTIFIER', '0|[1-9]\\d*')
-createToken('NUMERICIDENTIFIERLOOSE', '[0-9]+')
-
-// ## Non-numeric Identifier
-// Zero or more digits, followed by a letter or hyphen, and then zero or
-// more letters, digits, or hyphens.
-
-createToken('NONNUMERICIDENTIFIER', '\\d*[a-zA-Z-][a-zA-Z0-9-]*')
-
-// ## Main Version
-// Three dot-separated numeric identifiers.
-
-createToken('MAINVERSION', `(${src[t.NUMERICIDENTIFIER]})\\.` +
-                   `(${src[t.NUMERICIDENTIFIER]})\\.` +
-                   `(${src[t.NUMERICIDENTIFIER]})`)
-
-createToken('MAINVERSIONLOOSE', `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
-                        `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
-                        `(${src[t.NUMERICIDENTIFIERLOOSE]})`)
-
-// ## Pre-release Version Identifier
-// A numeric identifier, or a non-numeric identifier.
-
-createToken('PRERELEASEIDENTIFIER', `(?:${src[t.NUMERICIDENTIFIER]
-}|${src[t.NONNUMERICIDENTIFIER]})`)
-
-createToken('PRERELEASEIDENTIFIERLOOSE', `(?:${src[t.NUMERICIDENTIFIERLOOSE]
-}|${src[t.NONNUMERICIDENTIFIER]})`)
-
-// ## Pre-release Version
-// Hyphen, followed by one or more dot-separated pre-release version
-// identifiers.
-
-createToken('PRERELEASE', `(?:-(${src[t.PRERELEASEIDENTIFIER]
-}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`)
-
-createToken('PRERELEASELOOSE', `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]
-}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`)
-
-// ## Build Metadata Identifier
-// Any combination of digits, letters, or hyphens.
-
-createToken('BUILDIDENTIFIER', '[0-9A-Za-z-]+')
-
-// ## Build Metadata
-// Plus sign, followed by one or more period-separated build metadata
-// identifiers.
-
-createToken('BUILD', `(?:\\+(${src[t.BUILDIDENTIFIER]
-}(?:\\.${src[t.BUILDIDENTIFIER]})*))`)
-
-// ## Full Version String
-// A main version, followed optionally by a pre-release version and
-// build metadata.
-
-// Note that the only major, minor, patch, and pre-release sections of
-// the version string are capturing groups.  The build metadata is not a
-// capturing group, because it should not ever be used in version
-// comparison.
-
-createToken('FULLPLAIN', `v?${src[t.MAINVERSION]
-}${src[t.PRERELEASE]}?${
-  src[t.BUILD]}?`)
-
-createToken('FULL', `^${src[t.FULLPLAIN]}$`)
-
-// like full, but allows v1.2.3 and =1.2.3, which people do sometimes.
-// also, 1.0.0alpha1 (prerelease without the hyphen) which is pretty
-// common in the npm registry.
-createToken('LOOSEPLAIN', `[v=\\s]*${src[t.MAINVERSIONLOOSE]
-}${src[t.PRERELEASELOOSE]}?${
-  src[t.BUILD]}?`)
-
-createToken('LOOSE', `^${src[t.LOOSEPLAIN]}$`)
-
-createToken('GTLT', '((?:<|>)?=?)')
-
-// Something like "2.*" or "1.2.x".
-// Note that "x.x" is a valid xRange identifer, meaning "any version"
-// Only the first item is strictly required.
-createToken('XRANGEIDENTIFIERLOOSE', `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`)
-createToken('XRANGEIDENTIFIER', `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`)
-
-createToken('XRANGEPLAIN', `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})` +
-                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
-                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
-                   `(?:${src[t.PRERELEASE]})?${
-                     src[t.BUILD]}?` +
-                   `)?)?`)
-
-createToken('XRANGEPLAINLOOSE', `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})` +
-                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
-                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
-                        `(?:${src[t.PRERELEASELOOSE]})?${
-                          src[t.BUILD]}?` +
-                        `)?)?`)
-
-createToken('XRANGE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`)
-createToken('XRANGELOOSE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`)
-
-// Coercion.
-// Extract anything that could conceivably be a part of a valid semver
-createToken('COERCE', `${'(^|[^\\d])' +
-              '(\\d{1,'}${MAX_SAFE_COMPONENT_LENGTH}})` +
-              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
-              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
-              `(?:$|[^\\d])`)
-createToken('COERCERTL', src[t.COERCE], true)
-
-// Tilde ranges.
-// Meaning is "reasonably at or greater than"
-createToken('LONETILDE', '(?:~>?)')
-
-createToken('TILDETRIM', `(\\s*)${src[t.LONETILDE]}\\s+`, true)
-exports.tildeTrimReplace = '$1~'
-
-createToken('TILDE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`)
-createToken('TILDELOOSE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`)
-
-// Caret ranges.
-// Meaning is "at least and backwards compatible with"
-createToken('LONECARET', '(?:\\^)')
-
-createToken('CARETTRIM', `(\\s*)${src[t.LONECARET]}\\s+`, true)
-exports.caretTrimReplace = '$1^'
-
-createToken('CARET', `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`)
-createToken('CARETLOOSE', `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`)
-
-// A simple gt/lt/eq thing, or just "" to indicate "any version"
-createToken('COMPARATORLOOSE', `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`)
-createToken('COMPARATOR', `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`)
-
-// An expression to strip any whitespace between the gtlt and the thing
-// it modifies, so that `> 1.2.3` ==> `>1.2.3`
-createToken('COMPARATORTRIM', `(\\s*)${src[t.GTLT]
-}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true)
-exports.comparatorTrimReplace = '$1$2$3'
-
-// Something like `1.2.3 - 1.2.4`
-// Note that these all use the loose form, because they'll be
-// checked against either the strict or loose comparator form
-// later.
-createToken('HYPHENRANGE', `^\\s*(${src[t.XRANGEPLAIN]})` +
-                   `\\s+-\\s+` +
-                   `(${src[t.XRANGEPLAIN]})` +
-                   `\\s*$`)
-
-createToken('HYPHENRANGELOOSE', `^\\s*(${src[t.XRANGEPLAINLOOSE]})` +
-                        `\\s+-\\s+` +
-                        `(${src[t.XRANGEPLAINLOOSE]})` +
-                        `\\s*$`)
-
-// Star ranges basically just allow anything at all.
-createToken('STAR', '(<|>)?=?\\s*\\*')
-// >=0.0.0 is like a star
-createToken('GTE0', '^\\s*>=\\s*0\.0\.0\\s*$')
-createToken('GTE0PRE', '^\\s*>=\\s*0\.0\.0-0\\s*$')
-
-
-/***/ }),
-
-/***/ 9977:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-// Determine if version is greater than all the versions possible in the range.
-const outside = __webpack_require__(1086)
-const gtr = (version, range, options) => outside(version, range, '>', options)
-module.exports = gtr
-
-
-/***/ }),
-
-/***/ 6364:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const Range = __webpack_require__(9746)
-const intersects = (r1, r2, options) => {
-  r1 = new Range(r1, options)
-  r2 = new Range(r2, options)
-  return r1.intersects(r2)
-}
-module.exports = intersects
-
-
-/***/ }),
-
-/***/ 2207:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const outside = __webpack_require__(1086)
-// Determine if version is less than all the versions possible in the range
-const ltr = (version, range, options) => outside(version, range, '<', options)
-module.exports = ltr
-
-
-/***/ }),
-
-/***/ 8489:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const Range = __webpack_require__(9746)
-
-const maxSatisfying = (versions, range, options) => {
-  let max = null
-  let maxSV = null
-  let rangeObj = null
-  try {
-    rangeObj = new Range(range, options)
-  } catch (er) {
-    return null
-  }
-  versions.forEach((v) => {
-    if (rangeObj.test(v)) {
-      // satisfies(v, range, options)
-      if (!max || maxSV.compare(v) === -1) {
-        // compare(max, v, true)
-        max = v
-        maxSV = new SemVer(max, options)
-      }
-    }
-  })
-  return max
-}
-module.exports = maxSatisfying
-
-
-/***/ }),
-
-/***/ 8128:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const Range = __webpack_require__(9746)
-const minSatisfying = (versions, range, options) => {
-  let min = null
-  let minSV = null
-  let rangeObj = null
-  try {
-    rangeObj = new Range(range, options)
-  } catch (er) {
-    return null
-  }
-  versions.forEach((v) => {
-    if (rangeObj.test(v)) {
-      // satisfies(v, range, options)
-      if (!min || minSV.compare(v) === 1) {
-        // compare(min, v, true)
-        min = v
-        minSV = new SemVer(min, options)
-      }
-    }
-  })
-  return min
-}
-module.exports = minSatisfying
-
-
-/***/ }),
-
-/***/ 416:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const Range = __webpack_require__(9746)
-const gt = __webpack_require__(2208)
-
-const minVersion = (range, loose) => {
-  range = new Range(range, loose)
-
-  let minver = new SemVer('0.0.0')
-  if (range.test(minver)) {
-    return minver
-  }
-
-  minver = new SemVer('0.0.0-0')
-  if (range.test(minver)) {
-    return minver
-  }
-
-  minver = null
-  for (let i = 0; i < range.set.length; ++i) {
-    const comparators = range.set[i]
-
-    comparators.forEach((comparator) => {
-      // Clone to avoid manipulating the comparator's semver object.
-      const compver = new SemVer(comparator.semver.version)
-      switch (comparator.operator) {
-        case '>':
-          if (compver.prerelease.length === 0) {
-            compver.patch++
-          } else {
-            compver.prerelease.push(0)
-          }
-          compver.raw = compver.format()
-          /* fallthrough */
-        case '':
-        case '>=':
-          if (!minver || gt(minver, compver)) {
-            minver = compver
-          }
-          break
-        case '<':
-        case '<=':
-          /* Ignore maximum versions */
-          break
-        /* istanbul ignore next */
-        default:
-          throw new Error(`Unexpected operation: ${comparator.operator}`)
-      }
-    })
-  }
-
-  if (minver && range.test(minver)) {
-    return minver
-  }
-
-  return null
-}
-module.exports = minVersion
-
-
-/***/ }),
-
-/***/ 1086:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const SemVer = __webpack_require__(6103)
-const Comparator = __webpack_require__(8265)
-const {ANY} = Comparator
-const Range = __webpack_require__(9746)
-const satisfies = __webpack_require__(3006)
-const gt = __webpack_require__(2208)
-const lt = __webpack_require__(7492)
-const lte = __webpack_require__(5947)
-const gte = __webpack_require__(7104)
-
-const outside = (version, range, hilo, options) => {
-  version = new SemVer(version, options)
-  range = new Range(range, options)
-
-  let gtfn, ltefn, ltfn, comp, ecomp
-  switch (hilo) {
-    case '>':
-      gtfn = gt
-      ltefn = lte
-      ltfn = lt
-      comp = '>'
-      ecomp = '>='
-      break
-    case '<':
-      gtfn = lt
-      ltefn = gte
-      ltfn = gt
-      comp = '<'
-      ecomp = '<='
-      break
-    default:
-      throw new TypeError('Must provide a hilo val of "<" or ">"')
-  }
-
-  // If it satisifes the range it is not outside
-  if (satisfies(version, range, options)) {
-    return false
-  }
-
-  // From now on, variable terms are as if we're in "gtr" mode.
-  // but note that everything is flipped for the "ltr" function.
-
-  for (let i = 0; i < range.set.length; ++i) {
-    const comparators = range.set[i]
-
-    let high = null
-    let low = null
-
-    comparators.forEach((comparator) => {
-      if (comparator.semver === ANY) {
-        comparator = new Comparator('>=0.0.0')
-      }
-      high = high || comparator
-      low = low || comparator
-      if (gtfn(comparator.semver, high.semver, options)) {
-        high = comparator
-      } else if (ltfn(comparator.semver, low.semver, options)) {
-        low = comparator
-      }
-    })
-
-    // If the edge version comparator has a operator then our version
-    // isn't outside it
-    if (high.operator === comp || high.operator === ecomp) {
-      return false
-    }
-
-    // If the lowest version comparator has an operator and our version
-    // is less than it then it isn't higher than the range
-    if ((!low.operator || low.operator === comp) &&
-        ltefn(version, low.semver)) {
-      return false
-    } else if (low.operator === ecomp && ltfn(version, low.semver)) {
-      return false
-    }
-  }
-  return true
-}
-
-module.exports = outside
-
-
-/***/ }),
-
-/***/ 6938:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-// given a set of versions and a range, create a "simplified" range
-// that includes the same versions that the original range does
-// If the original range is shorter than the simplified one, return that.
-const satisfies = __webpack_require__(3006)
-const compare = __webpack_require__(7788)
-module.exports = (versions, range, options) => {
-  const set = []
-  let min = null
-  let prev = null
-  const v = versions.sort((a, b) => compare(a, b, options))
-  for (const version of v) {
-    const included = satisfies(version, range, options)
-    if (included) {
-      prev = version
-      if (!min)
-        min = version
-    } else {
-      if (prev) {
-        set.push([min, prev])
-      }
-      prev = null
-      min = null
-    }
-  }
-  if (min)
-    set.push([min, null])
-
-  const ranges = []
-  for (const [min, max] of set) {
-    if (min === max)
-      ranges.push(min)
-    else if (!max && min === v[0])
-      ranges.push('*')
-    else if (!max)
-      ranges.push(`>=${min}`)
-    else if (min === v[0])
-      ranges.push(`<=${max}`)
-    else
-      ranges.push(`${min} - ${max}`)
-  }
-  const simplified = ranges.join(' || ')
-  const original = typeof range.raw === 'string' ? range.raw : String(range)
-  return simplified.length < original.length ? simplified : range
-}
-
-
-/***/ }),
-
-/***/ 1989:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const Range = __webpack_require__(9746)
-const { ANY } = __webpack_require__(8265)
-const satisfies = __webpack_require__(3006)
-const compare = __webpack_require__(7788)
-
-// Complex range `r1 || r2 || ...` is a subset of `R1 || R2 || ...` iff:
-// - Every simple range `r1, r2, ...` is a subset of some `R1, R2, ...`
-//
-// Simple range `c1 c2 ...` is a subset of simple range `C1 C2 ...` iff:
-// - If c is only the ANY comparator
-//   - If C is only the ANY comparator, return true
-//   - Else return false
-// - Let EQ be the set of = comparators in c
-// - If EQ is more than one, return true (null set)
-// - Let GT be the highest > or >= comparator in c
-// - Let LT be the lowest < or <= comparator in c
-// - If GT and LT, and GT.semver > LT.semver, return true (null set)
-// - If EQ
-//   - If GT, and EQ does not satisfy GT, return true (null set)
-//   - If LT, and EQ does not satisfy LT, return true (null set)
-//   - If EQ satisfies every C, return true
-//   - Else return false
-// - If GT
-//   - If GT is lower than any > or >= comp in C, return false
-//   - If GT is >=, and GT.semver does not satisfy every C, return false
-// - If LT
-//   - If LT.semver is greater than that of any > comp in C, return false
-//   - If LT is <=, and LT.semver does not satisfy every C, return false
-// - If any C is a = range, and GT or LT are set, return false
-// - Else return true
-
-const subset = (sub, dom, options) => {
-  sub = new Range(sub, options)
-  dom = new Range(dom, options)
-  let sawNonNull = false
-
-  OUTER: for (const simpleSub of sub.set) {
-    for (const simpleDom of dom.set) {
-      const isSub = simpleSubset(simpleSub, simpleDom, options)
-      sawNonNull = sawNonNull || isSub !== null
-      if (isSub)
-        continue OUTER
-    }
-    // the null set is a subset of everything, but null simple ranges in
-    // a complex range should be ignored.  so if we saw a non-null range,
-    // then we know this isn't a subset, but if EVERY simple range was null,
-    // then it is a subset.
-    if (sawNonNull)
-      return false
-  }
-  return true
-}
-
-const simpleSubset = (sub, dom, options) => {
-  if (sub.length === 1 && sub[0].semver === ANY)
-    return dom.length === 1 && dom[0].semver === ANY
-
-  const eqSet = new Set()
-  let gt, lt
-  for (const c of sub) {
-    if (c.operator === '>' || c.operator === '>=')
-      gt = higherGT(gt, c, options)
-    else if (c.operator === '<' || c.operator === '<=')
-      lt = lowerLT(lt, c, options)
-    else
-      eqSet.add(c.semver)
-  }
-
-  if (eqSet.size > 1)
-    return null
-
-  let gtltComp
-  if (gt && lt) {
-    gtltComp = compare(gt.semver, lt.semver, options)
-    if (gtltComp > 0)
-      return null
-    else if (gtltComp === 0 && (gt.operator !== '>=' || lt.operator !== '<='))
-      return null
-  }
-
-  // will iterate one or zero times
-  for (const eq of eqSet) {
-    if (gt && !satisfies(eq, String(gt), options))
-      return null
-
-    if (lt && !satisfies(eq, String(lt), options))
-      return null
-
-    for (const c of dom) {
-      if (!satisfies(eq, String(c), options))
-        return false
-    }
-    return true
-  }
-
-  let higher, lower
-  let hasDomLT, hasDomGT
-  for (const c of dom) {
-    hasDomGT = hasDomGT || c.operator === '>' || c.operator === '>='
-    hasDomLT = hasDomLT || c.operator === '<' || c.operator === '<='
-    if (gt) {
-      if (c.operator === '>' || c.operator === '>=') {
-        higher = higherGT(gt, c, options)
-        if (higher === c)
-          return false
-      } else if (gt.operator === '>=' && !satisfies(gt.semver, String(c), options))
-        return false
-    }
-    if (lt) {
-      if (c.operator === '<' || c.operator === '<=') {
-        lower = lowerLT(lt, c, options)
-        if (lower === c)
-          return false
-      } else if (lt.operator === '<=' && !satisfies(lt.semver, String(c), options))
-        return false
-    }
-    if (!c.operator && (lt || gt) && gtltComp !== 0)
-      return false
-  }
-
-  // if there was a < or >, and nothing in the dom, then must be false
-  // UNLESS it was limited by another range in the other direction.
-  // Eg, >1.0.0 <1.0.1 is still a subset of <2.0.0
-  if (gt && hasDomLT && !lt && gtltComp !== 0)
-    return false
-
-  if (lt && hasDomGT && !gt && gtltComp !== 0)
-    return false
-
-  return true
-}
-
-// >=1.2.3 is lower than >1.2.3
-const higherGT = (a, b, options) => {
-  if (!a)
-    return b
-  const comp = compare(a.semver, b.semver, options)
-  return comp > 0 ? a
-    : comp < 0 ? b
-    : b.operator === '>' && a.operator === '>=' ? b
-    : a
-}
-
-// <=1.2.3 is higher than <1.2.3
-const lowerLT = (a, b, options) => {
-  if (!a)
-    return b
-  const comp = compare(a.semver, b.semver, options)
-  return comp < 0 ? a
-    : comp > 0 ? b
-    : b.operator === '<' && a.operator === '<=' ? b
-    : a
-}
-
-module.exports = subset
-
-
-/***/ }),
-
-/***/ 184:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const Range = __webpack_require__(9746)
-
-// Mostly just for testing and legacy API reasons
-const toComparators = (range, options) =>
-  new Range(range, options).set
-    .map(comp => comp.map(c => c.value).join(' ').trim().split(' '))
-
-module.exports = toComparators
-
-
-/***/ }),
-
-/***/ 5513:
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-const Range = __webpack_require__(9746)
-const validRange = (range, options) => {
-  try {
-    // Return '*' instead of '' so that truthiness works.
-    // This will throw if it's invalid anyway
-    return new Range(range, options).range || '*'
-  } catch (er) {
-    return null
-  }
-}
-module.exports = validRange
-
-
-/***/ }),
-
 /***/ 9318:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
@@ -11182,7 +11182,7 @@ module.exports = require("string_decoder");
 
 /***/ }),
 
-/***/ 4016:
+/***/ 8818:
 /***/ ((module) => {
 
 "use strict";
