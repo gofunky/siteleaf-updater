@@ -8,7 +8,7 @@
     "@actions/core": "1.2.6",
     "beauty-error": "1.2.5",
     "chalk": "4.1.0",
-    "command-line-usage": "6.1.0",
+    "command-line-usage": "6.1.1",
     "convict": "6.0.0",
     "superagent": "6.1.0",
     "yaml": "1.10.0"
