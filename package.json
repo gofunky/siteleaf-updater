@@ -11,7 +11,7 @@
     "command-line-usage": "6.1.1",
     "convict": "6.0.0",
     "superagent": "6.1.0",
-    "yaml": "1.10.0"
+    "yaml": "1.10.2"
   },
   "devDependencies": {
     "@hutson/npm-deploy-git-tag": "6.0.0",
