@@ -110,7 +110,7 @@ jobs:
       - name: only use fast-forward pulls
         run: git config pull.ff only
       - name: verify test runs
-        uses: nick-invision/retry@v2
+        uses: nick-invision/retry@v2.4.0
         with:
           retry_wait_seconds: 10
           timeout_minutes: 1
