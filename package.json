@@ -9,7 +9,7 @@
     "beauty-error": "1.2.6",
     "chalk": "4.1.0",
     "command-line-usage": "6.1.1",
-    "convict": "6.0.0",
+    "convict": "6.2.2",
     "superagent": "6.1.0",
     "yaml": "1.10.0"
   },
