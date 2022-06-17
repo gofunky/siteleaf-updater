@@ -28,7 +28,7 @@ jobs:
           ref: ${{ github.head_ref }}
           repository: ${{ env.repository }}
           token: ${{ secrets.PAT }}
-      - uses: bahmutov/npm-install@v1.4.5
+      - uses: bahmutov/npm-install@v1.8.15
       - name: running ncc
         run: yarn run ncc build action.js
       - name: creating pull request
