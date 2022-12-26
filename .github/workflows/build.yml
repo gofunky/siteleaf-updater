@@ -65,7 +65,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-      - uses: bahmutov/npm-install@v1.4.5
+      - uses: bahmutov/npm-install@v1.8.26
       - name: create test file
         run: echo "This is a test for ${{ github.sha }} by ${{ github.run_id }}" > test.md
       - name: run cli test
